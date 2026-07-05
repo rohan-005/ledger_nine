@@ -36,6 +36,7 @@ export default function ResearchForm() {
   const [fieldErrors, setFieldErrors] = useState<FieldError>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = React.useRef(false);
 
   // Pre-fill ticker from search params
   useEffect(() => {
@@ -59,11 +60,12 @@ export default function ResearchForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || submittingRef.current) return;
     setSubmitError(null);
 
     if (!validate()) return;
 
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
       const res = await createResearch({
@@ -75,6 +77,7 @@ export default function ResearchForm() {
     } catch (err: unknown) {
       const msg = isApiError(err) ? err.error : "Unexpected error. Please try again.";
       setSubmitError(msg);
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -85,10 +88,38 @@ export default function ResearchForm() {
         <div
           role="alert"
           id="form-error"
-          className="border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm font-medium"
+          className="border border-red-200 bg-red-50 text-red-700 rounded-xl p-4 text-sm flex flex-col gap-2 shadow-xs"
         >
-          <span className="font-bold">Error: </span>
-          {submitError}
+          <div className="flex items-center gap-2 text-red-800 font-semibold">
+            <svg
+              className="w-5 h-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <span className="font-bold">Research couldn't start</span>
+          </div>
+          <p className="text-red-600">
+            We couldn't create this research run. Please try again in a moment.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSubmitError(null);
+            }}
+            className="self-start text-xs text-red-800 hover:text-red-950 font-semibold underline focus:outline-none cursor-pointer"
+          >
+            Clear message
+          </button>
         </div>
       )}
 

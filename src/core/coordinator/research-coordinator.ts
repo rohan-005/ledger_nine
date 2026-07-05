@@ -36,7 +36,6 @@ export const researchCoordinator = {
       investmentHorizon,
       riskTolerance,
       status: "queued",
-      startedAt: new Date(),
     });
 
     // Launch background execution without awaiting

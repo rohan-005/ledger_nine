@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { researchCoordinator } from "@/src/core/coordinator/research-coordinator";
+import { logger } from "@/src/lib/logger";
 
 const START_RESEARCH_SCHEMA = z.object({
   ticker: z.string().min(1).max(16),
@@ -25,8 +26,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ researchId, status: "queued" }, { status: 201 });
   } catch (error: any) {
+    logger.error("API: Failed to start research run", error);
     return NextResponse.json(
-      { error: error.message || String(error) },
+      {
+        error: {
+          code: "RESEARCH_RUN_CREATION_FAILED",
+          message: "We couldn't start this research run. Please try again.",
+        },
+      },
       { status: 500 }
     );
   }

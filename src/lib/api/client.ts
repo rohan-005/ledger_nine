@@ -21,8 +21,14 @@ export async function apiFetch<T>(
     let details: unknown = null;
     try {
       const json = await response.json();
-      if (json && typeof json.error === "string") errorMsg = json.error;
-      if (json && json.details) details = json.details;
+      if (json) {
+        if (typeof json.error === "string") {
+          errorMsg = json.error;
+        } else if (json.error && typeof json.error.message === "string") {
+          errorMsg = json.error.message;
+        }
+        if (json.details) details = json.details;
+      }
     } catch {
       errorMsg = response.statusText || errorMsg;
     }

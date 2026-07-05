@@ -17,11 +17,15 @@ export const researchRepository = {
 
   async updateStatus(id: string, status: "queued" | "running" | "completed" | "failed", errMessage?: string) {
     const db = getDb();
-    await db.update(researchRuns).set({
+    const updateData: Partial<typeof researchRuns.$inferInsert> = {
       status,
       errorMessage: errMessage || null,
       updatedAt: new Date(),
-    }).where(eq(researchRuns.id, id));
+    };
+    if (status === "running") {
+      updateData.startedAt = new Date();
+    }
+    await db.update(researchRuns).set(updateData).where(eq(researchRuns.id, id));
   },
 
   async updateCurrentNode(id: string, currentNode: string) {
