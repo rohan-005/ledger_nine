@@ -33,11 +33,30 @@ export function calculateScores(
     let weightSum = 0;
 
     for (const item of catEvidence) {
-      const val = item.normalizedValue !== undefined && item.normalizedValue !== null
-        ? (item.normalizedValue <= 1 ? item.normalizedValue * 100 : item.normalizedValue)
-        : 50;
+      const rawVal = item.normalizedValue !== undefined && item.normalizedValue !== null
+        ? (typeof item.normalizedValue === "string" ? parseFloat(item.normalizedValue) : Number(item.normalizedValue))
+        : NaN;
       
-      const weight = item.confidence * item.sourceQuality;
+      let val = 50;
+      if (!isNaN(rawVal)) {
+        if (Math.abs(rawVal) > 1000) {
+          // Massive raw financial values (like market cap, net income) shouldn't be used as scores directly
+          val = 50;
+        } else {
+          // Scale fractional values (e.g. 0.12 revenue growth -> 12, or -0.05 -> -5)
+          // If it is between -1 and 1, we can map it to 0-100 with 50 as neutral: 50 + (rawVal * 50)
+          const scaled = (rawVal >= -1 && rawVal <= 1) ? 50 + (rawVal * 50) : rawVal;
+          // Clamp to 0..100 range
+          val = Math.max(0, Math.min(100, scaled));
+        }
+      }
+      
+      const conf = typeof item.confidence === "string" ? parseFloat(item.confidence) : Number(item.confidence);
+      const qual = typeof item.sourceQuality === "string" ? parseFloat(item.sourceQuality) : Number(item.sourceQuality);
+      const confidence = isNaN(conf) ? 0.8 : conf;
+      const sourceQuality = isNaN(qual) ? 0.8 : qual;
+      
+      const weight = confidence * sourceQuality;
       weightedValSum += val * weight;
       weightSum += weight;
     }
@@ -48,7 +67,13 @@ export function calculateScores(
   // 2. Calculate evidence quality score (0..100)
   let evidenceQuality = 50;
   if (evidenceList.length > 0) {
-    const sum = evidenceList.reduce((acc, e) => acc + e.confidence * e.sourceQuality, 0);
+    const sum = evidenceList.reduce((acc, e) => {
+      const conf = typeof e.confidence === "string" ? parseFloat(e.confidence) : Number(e.confidence);
+      const qual = typeof e.sourceQuality === "string" ? parseFloat(e.sourceQuality) : Number(e.sourceQuality);
+      const confidence = isNaN(conf) ? 0.8 : conf;
+      const sourceQuality = isNaN(qual) ? 0.8 : qual;
+      return acc + (confidence * sourceQuality);
+    }, 0);
     evidenceQuality = (sum / evidenceList.length) * 100;
   }
 

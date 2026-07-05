@@ -1,6 +1,7 @@
 import "server-only";
 import { Evidence } from "../evidence/evidence.types";
 import { llmRouter } from "../llm/llm-router";
+import { GeminiProvider } from "../llm/providers/gemini.provider";
 import { contradictionRepository } from "@/src/db/repositories/contradiction.repository";
 import { reportRepository } from "@/src/db/repositories/report.repository";
 import { generateId } from "@/src/lib/ids";
@@ -72,7 +73,13 @@ Raw Value: ${e.rawValue}`
   )
   .join("\n\n")}
 
-For each contradiction, provide the IDs of the two conflicting evidence items (evidenceIdA and evidenceIdB), a clear description of the conflict, a severity rating ('low' | 'medium' | 'high'), and a confidence score between 0.0 and 1.0. If there are no contradictions, return an empty list of contradictions.`;
+For each contradiction identified, return a JSON object with a "contradictions" key containing an array of objects. Each object in the array must have the following exact keys:
+- "evidenceIdA": ID of the first conflicting evidence item
+- "evidenceIdB": ID of the second conflicting evidence item
+- "description": Clear description of the conflict/contradiction
+- "severity": Severity rating, exactly one of "low", "medium", or "high"
+- "confidence": Confidence score between 0.0 and 1.0
+If no contradictions are found, return an empty array under the "contradictions" key.`;
 
   try {
     const response = await llmRouter.generateText(prompt, {
@@ -147,41 +154,102 @@ Calculated Scores & Recommendation:
 - Final Score: ${scores.final}
 - Decision: ${scores.decision}
 
-Based on the evidence pool and scores, generate a structured response with:
-1. A concise, compelling investment thesis statement.
-2. A bull case list (at least 3 key drivers / positives).
-3. A bear case list (at least 3 key concerns / negatives).
-4. Top key risks (at least 3 risk factors).
-5. A comprehensive narrative summary (1-2 detailed paragraphs).`;
+Based on the evidence pool and scores, generate a JSON object with the following exact keys:
+- "thesis": A concise, compelling investment thesis statement.
+- "bullCase": A JSON array of strings containing a list of bull case elements (at least 3 key drivers / positives).
+- "bearCase": A JSON array of strings containing a list of bear case elements (at least 3 key concerns / negatives).
+- "keyRisks": A JSON array of strings containing a list of key risks (at least 3 risk factors).
+- "summary": A comprehensive narrative summary (1-2 detailed paragraphs).`;
 
+  let responseText = "";
+  let success = false;
+
+  // 1. Try Gemini 2.5 Pro first (Committee Model)
   try {
-    const response = await llmRouter.generateText(prompt, {
+    logger.info("Committee: Attempting report synthesis with Gemini 2.5 Pro", { researchId });
+    const proProvider = new GeminiProvider("gemini-2.5-pro");
+    const response = await proProvider.generateText(prompt, {
       responseSchema: REPORT_SYNTHESIS_SCHEMA,
       temperature: 0.3,
     });
-
-    const parsed = JSON.parse(response.text) as {
-      thesis: string;
-      bullCase: string[];
-      bearCase: string[];
-      keyRisks: string[];
-      summary: string;
-    };
-
-    const reportData = {
-      id: generateId("rep"),
+    responseText = response.text;
+    success = true;
+    logger.info("Committee: Report synthesis with Gemini 2.5 Pro succeeded", { researchId });
+  } catch (err: any) {
+    logger.warn("Committee: Gemini 2.5 Pro synthesis failed, trying fallback to Router", {
       researchId,
-      thesis: parsed.thesis,
-      bullCase: JSON.stringify(parsed.bullCase),
-      bearCase: JSON.stringify(parsed.bearCase),
-      keyRisks: JSON.stringify(parsed.keyRisks),
-      summary: parsed.summary,
-      createdAt: new Date(),
-    };
+      error: err.message || String(err),
+    });
 
-    return await reportRepository.upsertReport(reportData);
-  } catch (error) {
-    logger.error("Error during research report synthesis", { researchId, error });
-    throw error;
+    // 2. Fallback to router (Gemini 2.5 Flash / Groq)
+    try {
+      const response = await llmRouter.generateText(prompt, {
+        responseSchema: REPORT_SYNTHESIS_SCHEMA,
+        temperature: 0.3,
+      });
+      responseText = response.text;
+      success = true;
+      logger.info("Committee: Report synthesis with Router fallback succeeded", { researchId });
+    } catch (fallbackErr: any) {
+      logger.error("Committee: Fallback report synthesis also failed", {
+        researchId,
+        error: fallbackErr.message || String(fallbackErr),
+      });
+    }
   }
+
+  if (success) {
+    try {
+      const parsed = JSON.parse(responseText) as {
+        thesis: string;
+        bullCase: string[];
+        bearCase: string[];
+        keyRisks: string[];
+        summary: string;
+      };
+
+      const reportData = {
+        id: generateId("rep"),
+        researchId,
+        thesis: parsed.thesis || "No thesis provided.",
+        bullCase: JSON.stringify(parsed.bullCase || []),
+        bearCase: JSON.stringify(parsed.bearCase || []),
+        keyRisks: JSON.stringify(parsed.keyRisks || []),
+        summary: parsed.summary || "No summary provided.",
+        createdAt: new Date(),
+      };
+
+      return await reportRepository.upsertReport(reportData);
+    } catch (parseError: any) {
+      logger.error("Committee: Failed to parse synthesized report JSON, using degraded report", {
+        researchId,
+        error: parseError.message || String(parseError),
+      });
+    }
+  }
+
+  // 3. Graceful degradation: write a degraded/fallback report row so the coordinator finishes successfully
+  logger.warn("Committee: Writing degraded fallback report to database", { researchId });
+  const degradedReport = {
+    id: generateId("rep"),
+    researchId,
+    thesis: `Graceful degradation: Institutional-grade report synthesis unavailable due to LLM provider limits or quotas. Deterministic score is ${scores.final} (${scores.decision}).`,
+    bullCase: JSON.stringify([
+      "Business Model & Quality Score: " + scores.business,
+      "Financial Health & Capital Allocation Score: " + scores.financial,
+      "Valuation & Price Safety Score: " + scores.valuation
+    ]),
+    bearCase: JSON.stringify([
+      "News & Macro Sentiment Score: " + scores.news,
+      "Identified Risk Factors Score: " + scores.risk,
+      "Contradiction Penalty Applied: " + scores.contradictionPenalty
+    ]),
+    keyRisks: JSON.stringify([
+      "LLM Synthesis Limitation: Gemini 2.5 Pro quota limits hit. Report generated using degraded mode."
+    ]),
+    summary: `The deterministic scoring system successfully analyzed ticker ${ticker.toUpperCase()} with a final score of ${scores.final}/100 and a recommendation of ${scores.decision}. Dynamic report synthesis could not be completed, but all raw evidence items and contradiction records are fully preserved and queryable.`,
+    createdAt: new Date(),
+  };
+
+  return await reportRepository.upsertReport(degradedReport);
 }

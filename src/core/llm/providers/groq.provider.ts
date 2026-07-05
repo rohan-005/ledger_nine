@@ -22,11 +22,20 @@ export class GroqProvider implements LLMProvider {
   async generateText(prompt: string, options: GenerateOptions = {}): Promise<LLMResponse> {
     const startTime = Date.now();
     try {
-      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [];
-      if (options.systemInstruction) {
-        messages.push({ role: "system", content: options.systemInstruction });
+      let userPrompt = prompt;
+      let systemInstruction = options.systemInstruction;
+      if (options.responseSchema) {
+        const hasJsonWord = (systemInstruction && /json/i.test(systemInstruction)) || /json/i.test(userPrompt);
+        if (!hasJsonWord) {
+          userPrompt += "\n\nCRITICAL: You must return a valid JSON object matching the specified schema.";
+        }
       }
-      messages.push({ role: "user", content: prompt });
+
+      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [];
+      if (systemInstruction) {
+        messages.push({ role: "system", content: systemInstruction });
+      }
+      messages.push({ role: "user", content: userPrompt });
 
       const client = this.getClient();
       const response = await client.chat.completions.create({

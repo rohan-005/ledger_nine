@@ -2,7 +2,7 @@ import "server-only";
 import { getFmpApiKey } from "@/src/lib/env";
 import { IntegrationError, RateLimitError } from "@/src/lib/errors";
 
-const BASE_URL = "https://financialmodelingprep.com/api/v3";
+const BASE_URL = "https://financialmodelingprep.com/stable";
 
 async function fmpFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
   let apiKey: string;
@@ -35,7 +35,11 @@ async function fmpFetch<T>(endpoint: string, params: Record<string, string> = {}
       }
 
       if (!response.ok) {
-        throw new IntegrationError("FMP HTTP error", "FMP", `HTTP error status ${response.status}`);
+        let errText = "";
+        try {
+          errText = await response.text();
+        } catch (_) {}
+        throw new IntegrationError("FMP HTTP error", "FMP", `HTTP error status ${response.status}: ${errText}`);
       }
 
       const text = await response.text();
@@ -61,7 +65,7 @@ async function fmpFetch<T>(endpoint: string, params: Record<string, string> = {}
 
 export const fmpClient = {
   async getCompanyProfile(ticker: string) {
-    const data = await fmpFetch<unknown[]>(`profile/${ticker.toUpperCase()}`);
+    const data = await fmpFetch<unknown[]>("profile", { symbol: ticker.toUpperCase() });
     if (!data || data.length === 0) {
       throw new IntegrationError("FMP profile error", "FMP", `No profile found for ticker ${ticker}`);
     }
@@ -69,27 +73,27 @@ export const fmpClient = {
   },
 
   async getIncomeStatements(ticker: string, limit = 3) {
-    return fmpFetch<unknown[]>(`income-statement/${ticker.toUpperCase()}`, { period: "annual", limit: String(limit) });
+    return fmpFetch<unknown[]>("income-statement", { symbol: ticker.toUpperCase(), period: "annual", limit: String(limit) });
   },
 
   async getBalanceSheets(ticker: string, limit = 3) {
-    return fmpFetch<unknown[]>(`balance-sheet-statement/${ticker.toUpperCase()}`, { period: "annual", limit: String(limit) });
+    return fmpFetch<unknown[]>("balance-sheet-statement", { symbol: ticker.toUpperCase(), period: "annual", limit: String(limit) });
   },
 
   async getCashFlowStatements(ticker: string, limit = 3) {
-    return fmpFetch<unknown[]>(`cash-flow-statement/${ticker.toUpperCase()}`, { period: "annual", limit: String(limit) });
+    return fmpFetch<unknown[]>("cash-flow-statement", { symbol: ticker.toUpperCase(), period: "annual", limit: String(limit) });
   },
 
   async getKeyMetrics(ticker: string, limit = 3) {
-    return fmpFetch<unknown[]>(`key-metrics/${ticker.toUpperCase()}`, { period: "annual", limit: String(limit) });
+    return fmpFetch<unknown[]>("key-metrics", { symbol: ticker.toUpperCase(), period: "annual", limit: String(limit) });
   },
 
   async getFinancialRatios(ticker: string, limit = 3) {
-    return fmpFetch<unknown[]>(`ratios/${ticker.toUpperCase()}`, { period: "annual", limit: String(limit) });
+    return fmpFetch<unknown[]>("ratios", { symbol: ticker.toUpperCase(), period: "annual", limit: String(limit) });
   },
 
   async getQuote(ticker: string) {
-    const data = await fmpFetch<unknown[]>(`quote/${ticker.toUpperCase()}`);
+    const data = await fmpFetch<unknown[]>("quote", { symbol: ticker.toUpperCase() });
     if (!data || data.length === 0) {
       throw new IntegrationError("FMP quote error", "FMP", `No quote found for ticker ${ticker}`);
     }
