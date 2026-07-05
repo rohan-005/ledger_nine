@@ -35,29 +35,42 @@ export const logger = {
   },
 
   error(message: string, error?: unknown, context?: LogContext) {
-    let errDetail: Record<string, unknown> = {};
-    if (error instanceof Error) {
-      errDetail = {
-        errorName: error.name || error.constructor?.name,
-        errorMessage: error.message,
-        errorStack: error.stack,
-      };
+    const errDetail: Record<string, unknown> = {};
+    
+    if (error) {
+      let current: any = error;
+      let depth = 0;
+      const maxDepth = 5;
       
-      const cause = (error as any).cause;
-      if (cause) {
-        errDetail.causeName = cause.name || cause.constructor?.name;
-        errDetail.causeMessage = cause.message;
-        if (typeof cause === "object") {
-          if (cause.code) errDetail.dbCode = String(cause.code);
-          if (cause.table_name) errDetail.dbTable = String(cause.table_name);
-          else if (cause.table) errDetail.dbTable = String(cause.table);
-          if (cause.column_name) errDetail.dbColumn = String(cause.column_name);
-          else if (cause.column) errDetail.dbColumn = String(cause.column);
-          if (cause.constraint) errDetail.dbConstraint = String(cause.constraint);
+      while (current && depth < maxDepth) {
+        const prefix = depth === 0 ? "error" : `cause${depth}`;
+        errDetail[`${prefix}Name`] = current.name || current.constructor?.name || "Error";
+        errDetail[`${prefix}Message`] = current.message || String(current);
+        
+        if (typeof current === "object") {
+          if (current.code) errDetail[`${prefix}DbCode`] = String(current.code);
+          if (current.severity) errDetail[`${prefix}DbSeverity`] = String(current.severity);
+          if (current.table) errDetail[`${prefix}DbTable`] = String(current.table);
+          else if (current.table_name) errDetail[`${prefix}DbTable`] = String(current.table_name);
+          if (current.column) errDetail[`${prefix}DbColumn`] = String(current.column);
+          else if (current.column_name) errDetail[`${prefix}DbColumn`] = String(current.column_name);
+          if (current.constraint) errDetail[`${prefix}DbConstraint`] = String(current.constraint);
+          else if (current.constraint_name) errDetail[`${prefix}DbConstraint`] = String(current.constraint_name);
+          if (current.routine) errDetail[`${prefix}DbRoutine`] = String(current.routine);
+          if (current.detail) errDetail[`${prefix}DbDetail`] = String(current.detail);
+        }
+        
+        if (current.cause && current.cause !== current) {
+          current = current.cause;
+          depth++;
+        } else {
+          break;
         }
       }
-    } else if (error) {
-      errDetail = { errorRaw: String(error) };
+      
+      if (error instanceof Error) {
+        errDetail.errorStack = error.stack;
+      }
     }
 
     console.error(
