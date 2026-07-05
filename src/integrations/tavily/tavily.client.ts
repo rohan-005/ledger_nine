@@ -21,6 +21,9 @@ export const tavilyClient = {
       const cached = await cacheRepository.getValid("tavily", cacheKey);
       if (cached) {
         logger.info("Tavily search cache hit", { ticker, query, mode });
+        if (cached && typeof cached === "object") {
+          (cached as any).cacheHit = true;
+        }
         return cached;
       }
     } catch (error) {
@@ -78,6 +81,9 @@ export const tavilyClient = {
         logger.warn("Failed to write Tavily response to cache", { error });
       }
 
+      if (data && typeof data === "object") {
+        (data as any).cacheHit = false;
+      }
       return data;
     } catch (error: unknown) {
       if (error instanceof IntegrationError) {
