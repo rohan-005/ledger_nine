@@ -18,6 +18,8 @@ export async function GET(
       status: run.status,
       currentNode: run.currentNode,
       errorMessage: run.errorMessage,
+      outcome: run.outcome ?? null,
+      insufficiencyReasons: run.insufficiencyReasons ? JSON.parse(run.insufficiencyReasons) : [],
       startedAt: run.startedAt,
       completedAt: run.completedAt,
     });

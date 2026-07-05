@@ -72,7 +72,11 @@ function ResearchHeader({ summary }: { summary: ResearchSummary }) {
         </span>
         {run.completedAt && (
           <span className="text-foreground-muted font-normal ml-auto">
-            {run.status === "interrupted" ? "Research Interrupted: " : "Run Completed: "}
+            {run.outcome === "insufficient_evidence"
+              ? "Research assessed: "
+              : run.outcome === "synthesis_degraded"
+              ? "Completed (degraded): "
+              : "Run Completed: "}
             {new Date(run.completedAt).toLocaleString()}
           </span>
         )}
@@ -182,7 +186,9 @@ export default function ResearchPageClient({ id }: { id: string }) {
           };
         });
 
-        if (statusData.status === "completed") {
+        // "completed" and "interrupted" are both terminal execution states —
+        // both require fetching full detail data to display the result page.
+        if (statusData.status === "completed" || statusData.status === "interrupted") {
           stopPolling();
           try {
             const fresh = await getResearch(id);
@@ -208,7 +214,8 @@ export default function ResearchPageClient({ id }: { id: string }) {
         const data = await getResearch(id);
         if (!mountedRef.current) return;
 
-        if (data.run.status === "completed") {
+        if (data.run.status === "completed" || data.run.status === "interrupted") {
+          // Both are terminal — load the full detail data and stop polling.
           await loadDetailData(data);
         } else if (data.run.status === "failed") {
           setSummary(data);
@@ -326,27 +333,32 @@ export default function ResearchPageClient({ id }: { id: string }) {
       </div>
     );
   } else if (run.outcome === "insufficient_evidence") {
+    // Deliberate gate decision — pipeline completed but evidence was not sufficient.
+    // This takes precedence over any status value.
     warningBanner = (
       <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs">
         <div className="flex items-center gap-3">
-          <span className="text-2xl select-none">⚠️</span>
-          <h2 className="text-lg font-bold">Research Insufficient</h2>
+          <span className="text-2xl select-none">📋</span>
+          <h2 className="text-xl font-bold">Not enough reliable evidence</h2>
         </div>
         <p className="text-sm text-amber-800 leading-relaxed">
-          We were unable to collect sufficient factual evidence to calculate a rating score or produce an investment thesis for <strong>{run.ticker}</strong>.
+          We collected partial information about <strong>{run.ticker}</strong>, but the available coverage was not strong enough to produce an investment assessment.
+        </p>
+        <p className="text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-200 rounded-lg px-3 py-2">
+          No score, rating, or investment verdict was produced.
         </p>
         {run.insufficiencyReasons && run.insufficiencyReasons.length > 0 && (
           <div className="border-t border-amber-200 pt-3 space-y-2">
-            <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Identified Insufficiency Factors</p>
-            <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
+            <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Why the research was insufficient</p>
+            <ul className="text-sm text-amber-800 space-y-1.5 list-disc list-inside leading-relaxed">
               {run.insufficiencyReasons.map((reason: string, idx: number) => {
                 if (reason === "NO_EVIDENCE") return <li key={idx}>No evidence was gathered from any source.</li>;
-                if (reason === "NO_FINANCIAL_EVIDENCE") return <li key={idx}>Missing fundamental financial or financial statements data.</li>;
-                if (reason === "INSUFFICIENT_CATEGORY_COVERAGE") return <li key={idx}>Insufficient coverage across different analysis categories.</li>;
-                if (reason === "CRITICAL_AGENT_FAILURES") return <li key={idx}>A critical agent failed during execution.</li>;
-                if (reason === "INSUFFICIENT_SPECIALIST_COVERAGE") return <li key={idx}>Completed specialist checks were insufficient to fulfill coverage gates (at least 2 successful agents required).</li>;
-                if (reason === "INSUFFICIENT_SOURCE_DIVERSITY") return <li key={idx}>Failed to establish diverse data source provenance (at least 2 unique source types required).</li>;
-                if (reason === "NO_REGULATORY_EVIDENCE") return <li key={idx}>Regulatory filings (SEC) required for US assets could not be retrieved.</li>;
+                if (reason === "NO_FINANCIAL_EVIDENCE") return <li key={idx}>Reliable financial-statement evidence was unavailable.</li>;
+                if (reason === "INSUFFICIENT_CATEGORY_COVERAGE") return <li key={idx}>The evidence did not cover enough of the company, financial, valuation, and risk picture.</li>;
+                if (reason === "CRITICAL_AGENT_FAILURES") return <li key={idx}>Several required research checks could not be completed.</li>;
+                if (reason === "INSUFFICIENT_SPECIALIST_COVERAGE") return <li key={idx}>Too few research areas completed successfully.</li>;
+                if (reason === "INSUFFICIENT_SOURCE_DIVERSITY") return <li key={idx}>The available evidence came from too few independent source types.</li>;
+                if (reason === "NO_REGULATORY_EVIDENCE") return <li key={idx}>Regulatory filing coverage was unavailable.</li>;
                 return <li key={idx}>{reason}</li>;
               })}
             </ul>
@@ -354,7 +366,7 @@ export default function ResearchPageClient({ id }: { id: string }) {
         )}
         {run.researchLimitations && run.researchLimitations.length > 0 && (
           <div className="border-t border-amber-200 pt-3 space-y-2">
-            <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Research Limitations</p>
+            <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Research coverage notes</p>
             <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
               {run.researchLimitations.map((limit: string, idx: number) => (
                 <li key={idx}>{limit}</li>
@@ -364,22 +376,20 @@ export default function ResearchPageClient({ id }: { id: string }) {
         )}
       </div>
     );
-  } else if (run.status === "interrupted" || run.outcome === "provider_failure" || run.outcome === "partial" || run.outcome === "interrupted") {
+  } else if (run.outcome === "interrupted") {
+    // Execution was genuinely aborted before reaching a research decision.
     warningBanner = (
       <div className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs">
         <div className="flex items-center gap-3">
           <span className="text-2xl select-none">⚠️</span>
           <h2 className="text-lg font-bold">Research Interrupted</h2>
         </div>
-        <p className="text-sm font-bold text-rose-800">
-          The audit was stopped. We did not formulate a rating.
-        </p>
-        <p className="text-sm text-rose-850 leading-relaxed">
-          The research run did not complete successfully due to service limitations or data execution failures. No final scores or ratings could be calculated.
+        <p className="text-sm text-rose-800 leading-relaxed">
+          A critical error or service disruption prevented the research pipeline from completing. This is not a problem with the ticker. No scores or verdicts were calculated.
         </p>
         {run.researchLimitations && run.researchLimitations.length > 0 && (
           <div className="border-t border-rose-200 pt-3 space-y-2">
-            <p className="text-xs font-bold text-rose-900 uppercase tracking-wider">Research Limitations</p>
+            <p className="text-xs font-bold text-rose-900 uppercase tracking-wider">What happened</p>
             <ul className="text-xs text-rose-800 space-y-1 list-disc list-inside">
               {run.researchLimitations.map((limit: string, idx: number) => (
                 <li key={idx}>{limit}</li>
