@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import {
   ResearchSummary,
   ResearchStatusResponse,
@@ -24,7 +25,10 @@ import ContradictionList from "@/src/components/research/contradiction-list";
 import AgentRunsPanel from "@/src/components/research/agent-runs";
 import ResearchStatusPanel from "@/src/components/research/research-status";
 
-// ─── Node labels ─────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const POLL_INTERVAL_MS = 2500;
+const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
 const NODE_LABELS: Record<string, string> = {
   specialists: "Specialist Agents Running",
@@ -38,8 +42,6 @@ function nodeLabel(node: string | null): string {
   return NODE_LABELS[node] ?? node;
 }
 
-// ─── Section nav ─────────────────────────────────────────────────────────────
-
 const SECTIONS = [
   { id: "overview", label: "Overview" },
   { id: "scores", label: "Scores" },
@@ -49,44 +51,24 @@ const SECTIONS = [
   { id: "agents", label: "Agent Runs" },
 ];
 
-// ─── Header ──────────────────────────────────────────────────────────────────
+// ─── Result header ────────────────────────────────────────────────────────────
 
-function ResearchHeader({
-  summary,
-}: {
-  summary: ResearchSummary;
-}) {
+function ResearchHeader({ summary }: { summary: ResearchSummary }) {
   const { run, score } = summary;
   const finalScore = score ? parseScore(score.finalScore) : null;
   const decision: DecisionType | null = score?.decision ?? null;
 
   return (
     <div id="overview" className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-4">
-      {/* Metadata */}
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-neutral-400">
-        <span>
-          Horizon:{" "}
-          <span className="text-neutral-200 font-medium">{run.investmentHorizon}</span>
-        </span>
-        <span>
-          Risk:{" "}
-          <span className="text-neutral-200 font-medium capitalize">{run.riskTolerance}</span>
-        </span>
-        <span>
-          Status:{" "}
-          <span className="text-neutral-200 font-medium uppercase">{run.status}</span>
-        </span>
+        <span>Horizon: <span className="text-neutral-200 font-medium">{run.investmentHorizon}</span></span>
+        <span>Risk: <span className="text-neutral-200 font-medium capitalize">{run.riskTolerance}</span></span>
+        <span>Status: <span className="text-neutral-200 font-medium uppercase">{run.status}</span></span>
         {run.completedAt && (
-          <span>
-            Completed:{" "}
-            <span className="text-neutral-200 font-medium">
-              {new Date(run.completedAt).toLocaleString()}
-            </span>
-          </span>
+          <span>Completed: <span className="text-neutral-200 font-medium">{new Date(run.completedAt).toLocaleString()}</span></span>
         )}
       </div>
 
-      {/* Ticker & Decision */}
       <div className="flex flex-wrap items-end gap-6">
         <div>
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-0.5">Ticker</p>
@@ -98,14 +80,8 @@ function ResearchHeader({
 
         {decision !== null && finalScore !== null && (
           <div className="ml-auto text-right">
-            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-0.5">
-              Deterministic Decision
-            </p>
-            <p
-              className={`text-4xl font-black tracking-tight ${
-                decision === "INVEST" ? "text-green-400" : "text-red-400"
-              }`}
-            >
+            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-0.5">Deterministic Decision</p>
+            <p className={`text-4xl font-black tracking-tight ${decision === "INVEST" ? "text-green-400" : "text-red-400"}`}>
               {decision}
             </p>
             <p className="text-2xl font-bold text-neutral-300 font-mono mt-0.5">
@@ -118,127 +94,117 @@ function ResearchHeader({
   );
 }
 
-// ─── Main page component ──────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
-const POLL_INTERVAL_MS = 2500;
-const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
-interface ResearchPageClientProps {
-  id: string;
-}
-
-export default function ResearchPageClient({ id }: ResearchPageClientProps) {
+export default function ResearchPageClient({ id }: { id: string }) {
   const [summary, setSummary] = useState<ResearchSummary | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[] | null>(null);
   const [agents, setAgents] = useState<AgentRun[] | null>(null);
   const [contradictions, setContradictions] = useState<Contradiction[] | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pollTimedOut, setPollTimedOut] = useState(false);
 
-  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollStartRef = useRef<number>(Date.now());
+  // All polling state lives in refs to avoid stale closure issues
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  const pollStartRef = useRef(0);
   const isPollingRef = useRef(false);
 
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearTimeout(pollingRef.current);
-      pollingRef.current = null;
-    }
+  function stopPolling() {
     isPollingRef.current = false;
-  }, []);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }
 
-  // Load all detail data after completion
-  const loadDetailData = useCallback(async (currentSummary: ResearchSummary) => {
-    const ctrl = new AbortController();
+  async function loadDetailData(currentSummary: ResearchSummary) {
     try {
       const [evRes, agRes, ctRes] = await Promise.all([
-        getResearchEvidence(id, ctrl.signal),
-        getResearchAgents(id, ctrl.signal),
-        getResearchContradictions(id, ctrl.signal),
+        getResearchEvidence(id),
+        getResearchAgents(id),
+        getResearchContradictions(id),
       ]);
+      if (!mountedRef.current) return;
       setEvidence(evRes.evidence);
       setAgents(agRes.agentRuns);
       setContradictions(ctRes.contradictions);
     } catch {
-      // Non-fatal: detail data load failed; summary still available
+      // non-fatal
     }
+    if (!mountedRef.current) return;
     setSummary(currentSummary);
     setLoading(false);
-  }, [id]);
+  }
 
-  // Poll status during active runs
-  const pollStatus = useCallback(async () => {
-    if (!isPollingRef.current) return;
+  function schedulePoll(pollFn: () => void) {
+    timerRef.current = setTimeout(pollFn, POLL_INTERVAL_MS);
+  }
 
-    // Check timeout
-    if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
-      stopPolling();
-      setPollTimedOut(true);
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    mountedRef.current = true;
 
-    let statusData: ResearchStatusResponse | null = null;
-    try {
-      statusData = await getResearchStatus(id);
-    } catch {
-      // Temporary failure — keep polling
-    }
+    async function poll() {
+      if (!isPollingRef.current || !mountedRef.current) return;
 
-    if (!isPollingRef.current) return; // Unmounted during await
-
-    if (statusData) {
-      // Update in-place while keeping other fields
-      setSummary((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          run: {
-            ...prev.run,
-            status: statusData!.status,
-            currentNode: statusData!.currentNode,
-            errorMessage: statusData!.errorMessage,
-            companyName: statusData!.companyName ?? prev.run.companyName,
-            completedAt: statusData!.completedAt,
-          },
-        };
-      });
-
-      if (statusData.status === "completed") {
+      if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
         stopPolling();
-        // Re-fetch full summary to get scores + report
-        try {
-          const fresh = await getResearch(id);
-          await loadDetailData(fresh);
-        } catch {
-          setLoading(false);
-        }
-        return;
-      }
-
-      if (statusData.status === "failed") {
-        stopPolling();
+        setPollTimedOut(true);
         setLoading(false);
         return;
       }
-    }
 
-    // Schedule next poll
-    if (isPollingRef.current) {
-      pollingRef.current = setTimeout(pollStatus, POLL_INTERVAL_MS);
-    }
-  }, [id, stopPolling, loadDetailData]);
+      let statusData: ResearchStatusResponse | null = null;
+      try {
+        statusData = await getResearchStatus(id);
+      } catch {
+        // temporary failure — keep polling
+      }
 
-  // Initial load
-  useEffect(() => {
-    let cancelled = false;
+      if (!isPollingRef.current || !mountedRef.current) return;
+
+      if (statusData) {
+        setSummary((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            run: {
+              ...prev.run,
+              status: statusData!.status,
+              currentNode: statusData!.currentNode,
+              errorMessage: statusData!.errorMessage,
+              companyName: statusData!.companyName ?? prev.run.companyName,
+              completedAt: statusData!.completedAt,
+            },
+          };
+        });
+
+        if (statusData.status === "completed") {
+          stopPolling();
+          try {
+            const fresh = await getResearch(id);
+            if (mountedRef.current) await loadDetailData(fresh);
+          } catch {
+            if (mountedRef.current) setLoading(false);
+          }
+          return;
+        }
+
+        if (statusData.status === "failed") {
+          stopPolling();
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (isPollingRef.current) schedulePoll(poll);
+    }
 
     async function init() {
       try {
         const data = await getResearch(id);
-        if (cancelled) return;
+        if (!mountedRef.current) return;
 
         if (data.run.status === "completed") {
           await loadDetailData(data);
@@ -246,15 +212,14 @@ export default function ResearchPageClient({ id }: ResearchPageClientProps) {
           setSummary(data);
           setLoading(false);
         } else {
-          // queued or running — start polling
           setSummary(data);
           setLoading(false);
           isPollingRef.current = true;
           pollStartRef.current = Date.now();
-          pollingRef.current = setTimeout(pollStatus, POLL_INTERVAL_MS);
+          schedulePoll(poll);
         }
       } catch (err: unknown) {
-        if (cancelled) return;
+        if (!mountedRef.current) return;
         const msg = (err as { error?: string })?.error ?? "Failed to load research run.";
         setError(msg);
         setLoading(false);
@@ -262,13 +227,15 @@ export default function ResearchPageClient({ id }: ResearchPageClientProps) {
     }
 
     init();
+
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
       stopPolling();
     };
-  }, [id, loadDetailData, pollStatus, stopPolling]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-  // ── Render states ──────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (loading && !summary) {
     return (
@@ -284,9 +251,9 @@ export default function ResearchPageClient({ id }: ResearchPageClientProps) {
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
         <p className="text-red-400 font-semibold">Unable to load research</p>
         <p className="text-sm text-neutral-500 max-w-md text-center">{error}</p>
-        <a href="/research/new" className="text-sm text-blue-400 underline mt-2">
+        <Link href="/research/new" className="text-sm text-blue-400 underline mt-2">
           Start a new research run →
-        </a>
+        </Link>
       </div>
     );
   }
@@ -319,13 +286,12 @@ export default function ResearchPageClient({ id }: ResearchPageClientProps) {
     );
   }
 
-  // ── Completed dashboard ────────────────────────────────────────────────────
+  // ── Completed dashboard ──────────────────────────────────────────────────
 
   const evidenceMap = new Map((evidence ?? []).map((e) => [e.id, e]));
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      {/* Section nav */}
       <nav aria-label="Page sections" className="sticky top-0 z-10 bg-black/80 backdrop-blur border-b border-neutral-800 -mx-4 px-4 py-2">
         <div className="flex gap-4 overflow-x-auto scrollbar-hide">
           {SECTIONS.map((s) => (
@@ -340,27 +306,16 @@ export default function ResearchPageClient({ id }: ResearchPageClientProps) {
         </div>
       </nav>
 
-      {/* Header / Overview */}
       <ResearchHeader summary={summary} />
-
-      {/* Scores */}
       {summary.score && <ScoreOverview score={summary.score} />}
-
-      {/* Committee Report */}
       {summary.report && <CommitteeReport report={summary.report} />}
-
-      {/* Evidence */}
-      {evidence !== null && <EvidenceExplorer evidence={evidence} />}
-      {evidence === null && (
-        <div className="text-sm text-neutral-500">Loading evidence…</div>
-      )}
-
-      {/* Contradictions */}
+      {evidence !== null
+        ? <EvidenceExplorer evidence={evidence} />
+        : <div className="text-sm text-neutral-500">Loading evidence…</div>
+      }
       {contradictions !== null && (
         <ContradictionList contradictions={contradictions} evidenceMap={evidenceMap} />
       )}
-
-      {/* Agent Runs */}
       {agents !== null && <AgentRunsPanel agentRuns={agents} />}
     </div>
   );
