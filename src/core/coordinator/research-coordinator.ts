@@ -74,6 +74,20 @@ export const researchCoordinator = {
       await researchRepository.updateCurrentNode(researchId, "contradictions");
       const contradictionsList = await runContradictionDetector(researchId, ticker, evidenceList);
 
+      // Grounding Audit: Verify that all contradictions reference valid evidence IDs
+      const validEvidenceIds = new Set(evidenceList.map((e) => e.id));
+      const ungroundedContradictions = contradictionsList.filter(
+        (c) => !validEvidenceIds.has(c.evidenceIdA) || !validEvidenceIds.has(c.evidenceIdB)
+      );
+      if (ungroundedContradictions.length > 0) {
+        logger.error("Grounding Audit: Detected ungrounded contradictions referencing non-existent evidence!", {
+          researchId,
+          ticker,
+          count: ungroundedContradictions.length,
+          violators: ungroundedContradictions.map((c) => c.id),
+        });
+      }
+
       // 4. Calculate Scores
       await researchRepository.updateCurrentNode(researchId, "scoring");
       const scores = calculateScores(evidenceList, contradictionsList);
@@ -91,6 +105,7 @@ export const researchCoordinator = {
         contradictionPenalty: String(scores.contradictionPenalty),
         finalScore: String(scores.final),
         decision: scores.decision,
+        scoreBreakdown: scores.breakdown ? JSON.stringify(scores.breakdown) : null,
         createdAt: new Date(),
       });
 

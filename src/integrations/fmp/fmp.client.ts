@@ -1,10 +1,31 @@
 import "server-only";
 import { getFmpApiKey } from "@/src/lib/env";
 import { IntegrationError, RateLimitError } from "@/src/lib/errors";
+import { cacheRepository } from "@/src/db/repositories/cache.repository";
+import { generateId } from "@/src/lib/ids";
+import { logger } from "@/src/lib/logger";
 
 const BASE_URL = "https://financialmodelingprep.com/stable";
 
 async function fmpFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+  const ticker = (params.symbol || "unknown").toUpperCase();
+  const limit = params.limit || "";
+  const period = params.period || "";
+  const dateBucket = new Date().toISOString().slice(0, 10); // Daily cache bucket
+  const cacheKey = `fmp:${ticker}:${endpoint}:${period}:${limit}:${dateBucket}`;
+
+  // 1. Try cache first
+  try {
+    const cached = await cacheRepository.getValid("fmp", cacheKey);
+    if (cached) {
+      logger.info("FMP cache hit", { ticker, endpoint });
+      return cached as T;
+    }
+  } catch (error) {
+    logger.warn("Failed to check FMP cache, proceeding to API", { error });
+  }
+
+  // 2. Fetch from FMP API
   let apiKey: string;
   try {
     apiKey = getFmpApiKey();
@@ -43,11 +64,30 @@ async function fmpFetch<T>(endpoint: string, params: Record<string, string> = {}
       }
 
       const text = await response.text();
+      let data: T;
       try {
-        return JSON.parse(text) as T;
+        data = JSON.parse(text) as T;
       } catch (err: unknown) {
         throw new IntegrationError("FMP parse error", "FMP", "Failed to parse JSON response from FMP API", false, undefined, err);
       }
+
+      // 3. Write to cache
+      try {
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours TTL
+        await cacheRepository.set({
+          id: generateId("run").replace("run_", "ch_"),
+          provider: "fmp",
+          cacheKey,
+          requestFingerprint: cacheKey,
+          payload: JSON.stringify(data),
+          expiresAt,
+        });
+      } catch (cacheErr) {
+        logger.warn("Failed to write FMP response to cache", { cacheErr });
+      }
+
+      return data;
     } catch (error: unknown) {
       if (error instanceof RateLimitError || error instanceof IntegrationError) {
         throw error;

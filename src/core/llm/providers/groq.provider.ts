@@ -23,7 +23,7 @@ export class GroqProvider implements LLMProvider {
     const startTime = Date.now();
     try {
       let userPrompt = prompt;
-      let systemInstruction = options.systemInstruction;
+      const systemInstruction = options.systemInstruction;
       if (options.responseSchema) {
         const hasJsonWord = (systemInstruction && /json/i.test(systemInstruction)) || /json/i.test(userPrompt);
         if (!hasJsonWord) {

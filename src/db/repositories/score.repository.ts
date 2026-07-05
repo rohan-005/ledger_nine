@@ -20,6 +20,7 @@ export const scoreRepository = {
           contradictionPenalty: data.contradictionPenalty,
           finalScore: data.finalScore,
           decision: data.decision,
+          scoreBreakdown: data.scoreBreakdown,
         },
       })
       .returning();

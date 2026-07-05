@@ -127,7 +127,7 @@ For each piece of evidence extracted, provide:
       category: item.category || "financial",
       sourceType: "fmp" as const,
       rawValue: item.rawValue,
-      normalizedValue: item.normalizedValue !== undefined && item.normalizedValue !== null ? String(item.normalizedValue) : null,
+      normalizedValue: item.normalizedValue !== undefined && item.normalizedValue !== null && !isNaN(Number(item.normalizedValue)) && typeof item.normalizedValue !== "object" ? String(item.normalizedValue) : null,
       confidence: String(item.confidence || 0.8),
       sourceQuality: String(item.sourceQuality || 0.9),
       agentId: "financial",

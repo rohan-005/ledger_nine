@@ -18,6 +18,19 @@ export async function GET(
     const score = await scoreRepository.getScoreByResearchId(id);
     const report = await reportRepository.getReportByResearchId(id);
 
+    // Parse scoreBreakdown in score if it exists
+    let formattedScore = null;
+    if (score) {
+      try {
+        formattedScore = {
+          ...score,
+          scoreBreakdown: score.scoreBreakdown ? JSON.parse(score.scoreBreakdown) : null,
+        };
+      } catch (e) {
+        formattedScore = score;
+      }
+    }
+
     // Parse stringified JSON fields in report if it exists
     let formattedReport = null;
     if (report) {
@@ -35,7 +48,7 @@ export async function GET(
 
     return NextResponse.json({
       run,
-      score,
+      score: formattedScore,
       report: formattedReport,
     });
   } catch (error: any) {

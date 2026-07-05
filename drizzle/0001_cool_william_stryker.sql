@@ -1,0 +1,1 @@
+ALTER TABLE "research_scores" ADD COLUMN "score_breakdown" text;

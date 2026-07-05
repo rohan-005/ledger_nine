@@ -7,6 +7,23 @@ import { logger } from "@/src/lib/logger";
 
 const SEARCH_URL = "https://api.tavily.com/search";
 
+function deduplicateResults(data: any): any {
+  if (data && typeof data === "object" && Array.isArray(data.results)) {
+    const seenUrls = new Set<string>();
+    const uniqueResults = [];
+    for (const res of data.results) {
+      if (!res || !res.url) continue;
+      const normalizedUrl = res.url.split("?")[0].split("#")[0].replace(/\/$/, "");
+      if (!seenUrls.has(normalizedUrl)) {
+        seenUrls.add(normalizedUrl);
+        uniqueResults.push(res);
+      }
+    }
+    data.results = uniqueResults;
+  }
+  return data;
+}
+
 export const tavilyClient = {
   async search(
     query: string,
@@ -21,10 +38,11 @@ export const tavilyClient = {
       const cached = await cacheRepository.getValid("tavily", cacheKey);
       if (cached) {
         logger.info("Tavily search cache hit", { ticker, query, mode });
-        if (cached && typeof cached === "object") {
-          (cached as any).cacheHit = true;
+        const deduped = deduplicateResults(cached);
+        if (deduped && typeof deduped === "object") {
+          (deduped as any).cacheHit = true;
         }
-        return cached;
+        return deduped;
       }
     } catch (error) {
       // Degrade gracefully if database URL is missing or DB is down
@@ -60,6 +78,7 @@ export const tavilyClient = {
       let data: unknown;
       try {
         data = JSON.parse(text);
+        data = deduplicateResults(data);
       } catch (err) {
         throw new IntegrationError("Tavily parse error", "Tavily", "Failed to parse JSON response from Tavily API", false, undefined, err);
       }

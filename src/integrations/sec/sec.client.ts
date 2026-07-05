@@ -2,13 +2,27 @@ import "server-only";
 import { getSecEdgarUserAgent } from "@/src/lib/env";
 import { IntegrationError } from "@/src/lib/errors";
 import { RATE_LIMITS_CONFIG } from "@/src/config/rate-limits.config";
+import { cacheRepository } from "@/src/db/repositories/cache.repository";
+import { generateId } from "@/src/lib/ids";
+import { logger } from "@/src/lib/logger";
 
 const SUBMISSIONS_URL = "https://data.sec.gov/submissions";
 const FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts";
 
 let lastRequestTime = 0;
 
-async function secFetch<T>(url: string): Promise<T> {
+async function secFetch<T>(url: string, cacheKey: string): Promise<T> {
+  // 1. Try cache first
+  try {
+    const cached = await cacheRepository.getValid("sec", cacheKey);
+    if (cached) {
+      logger.info("SEC cache hit", { cacheKey });
+      return cached as T;
+    }
+  } catch (error) {
+    logger.warn("Failed to check SEC cache, proceeding to API", { error });
+  }
+
   const userAgent = getSecEdgarUserAgent();
 
   // Self-throttling delay to comply with fair-access limits
@@ -38,11 +52,30 @@ async function secFetch<T>(url: string): Promise<T> {
     }
 
     const text = await response.text();
+    let data: T;
     try {
-      return JSON.parse(text) as T;
+      data = JSON.parse(text) as T;
     } catch (err: unknown) {
       throw new IntegrationError("SEC parse error", "SEC", "Failed to parse JSON response from SEC Edgar", false, undefined, err);
     }
+
+    // 2. Write to cache
+    try {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours TTL
+      await cacheRepository.set({
+        id: generateId("run").replace("run_", "ch_"),
+        provider: "sec",
+        cacheKey,
+        requestFingerprint: cacheKey,
+        payload: JSON.stringify(data),
+        expiresAt,
+      });
+    } catch (cacheErr) {
+      logger.warn("Failed to write SEC response to cache", { cacheErr });
+    }
+
+    return data;
   } catch (error: unknown) {
     if (error instanceof IntegrationError) {
       throw error;
@@ -63,12 +96,16 @@ export const secClient = {
   async getSubmissions(cik: string | number) {
     const padded = this.padCik(cik);
     const url = `${SUBMISSIONS_URL}/CIK${padded}.json`;
-    return secFetch<unknown>(url);
+    const dateBucket = new Date().toISOString().slice(0, 10);
+    const cacheKey = `sec:${padded}:submissions:${dateBucket}`;
+    return secFetch<unknown>(url, cacheKey);
   },
 
   async getCompanyFacts(cik: string | number) {
     const padded = this.padCik(cik);
     const url = `${FACTS_URL}/CIK${padded}.json`;
-    return secFetch<unknown>(url);
+    const dateBucket = new Date().toISOString().slice(0, 10);
+    const cacheKey = `sec:${padded}:facts:${dateBucket}`;
+    return secFetch<unknown>(url, cacheKey);
   },
 };
