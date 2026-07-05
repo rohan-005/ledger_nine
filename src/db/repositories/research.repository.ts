@@ -15,7 +15,7 @@ export const researchRepository = {
     return run || null;
   },
 
-  async updateStatus(id: string, status: "queued" | "running" | "completed" | "failed", errMessage?: string) {
+  async updateStatus(id: string, status: "queued" | "running" | "completed" | "failed" | "interrupted", errMessage?: string) {
     const db = getDb();
     const updateData: Partial<typeof researchRuns.$inferInsert> = {
       status,
@@ -39,13 +39,14 @@ export const researchRepository = {
   async markCompleted(
     id: string,
     companyName?: string,
-    outcome?: "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded",
+    outcome?: "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded" | "interrupted" | "failed",
     insufficiencyReasons?: string[],
-    researchLimitations?: string[]
+    researchLimitations?: string[],
+    status: "completed" | "interrupted" | "failed" = "completed"
   ) {
     const db = getDb();
     await db.update(researchRuns).set({
-      status: "completed",
+      status,
       companyName: companyName || null,
       outcome: outcome || null,
       insufficiencyReasons: insufficiencyReasons ? JSON.stringify(insufficiencyReasons) : null,
@@ -59,6 +60,7 @@ export const researchRepository = {
     const db = getDb();
     await db.update(researchRuns).set({
       status: "failed",
+      outcome: "failed",
       errorMessage,
       completedAt: new Date(),
       updatedAt: new Date(),

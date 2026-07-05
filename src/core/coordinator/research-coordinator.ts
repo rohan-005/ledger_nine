@@ -150,7 +150,7 @@ export const researchCoordinator = {
       });
 
       // 6. Synthesize Research Report or Degradation Fallback
-      let finalOutcome: "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded" = sufficiencyResult.outcome;
+      let finalOutcome: "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded" | "interrupted" = sufficiencyResult.outcome;
       
       if (sufficiencyResult.sufficient) {
         await researchRepository.updateCurrentNode(researchId, "committee");
@@ -179,14 +179,21 @@ export const researchCoordinator = {
         });
       }
 
-      // 7. Complete Run
+      // 7. Complete/Interrupt Run
+      let finalStatus: "completed" | "interrupted" | "failed" = "completed";
+      if ((finalOutcome as string) === "provider_failure" || (finalOutcome as string) === "partial" || (finalOutcome as string) === "interrupted") {
+        finalStatus = "interrupted";
+        finalOutcome = "interrupted";
+      }
+
       await researchRepository.updateCurrentNode(researchId, "completed");
       await researchRepository.markCompleted(
         researchId,
         companyName,
         finalOutcome,
         sufficiencyResult.reasons,
-        sufficiencyResult.limitations
+        sufficiencyResult.limitations,
+        finalStatus
       );
 
       logger.info("Coordinator: Pipeline successfully finished execution", { researchId, ticker });

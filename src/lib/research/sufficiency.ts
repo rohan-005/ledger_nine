@@ -71,6 +71,25 @@ export function checkSufficiency(
     reasons.push("CRITICAL_AGENT_FAILURES");
   }
 
+  // Specialist coverage check (must have at least 2 successful agents)
+  const completedAgents = agentRuns.filter((r) => r.status === "completed");
+  const successfulAgentsCount = completedAgents.length;
+  if (successfulAgentsCount < 2) {
+    reasons.push("INSUFFICIENT_SPECIALIST_COVERAGE");
+  }
+
+  // Source-provider diversity check (must have at least 2 unique source providers if any evidence is found)
+  const uniqueSources = new Set(evidenceList.map((e) => e.sourceType));
+  if (uniqueSources.size < 2 && evidenceList.length > 0) {
+    reasons.push("INSUFFICIENT_SOURCE_DIVERSITY");
+  }
+
+  // Regulatory filings check for US assets
+  const secEvidenceCount = evidenceList.filter((e) => e.sourceType === "sec").length;
+  if (isUSAsset && secEvidenceCount === 0) {
+    reasons.push("NO_REGULATORY_EVIDENCE");
+  }
+
   // 4. Determine outcome & sufficiency
   const sufficient = reasons.length === 0;
   

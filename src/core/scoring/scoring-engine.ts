@@ -1,6 +1,40 @@
 import { Evidence } from "../evidence/evidence.types";
 import { ResearchScores, InvestmentDecision, ScoreCategoryBreakdown } from "./score.types";
 import { SCORING_CONFIG } from "@/src/config/scoring.config";
+import { logger } from "@/src/lib/logger";
+
+function extractNumericValue(text: string): number | null {
+  if (!text) return null;
+  const cleaned = text.replace(/[\$,]/g, "");
+  const match = cleaned.match(/[-+]?\d*\.?\d+/);
+  return match ? parseFloat(match[0]) : null;
+}
+
+const priceKeywords = ["$", "price", "share", "target", "value", "trading", "stock", "close", "high", "low", "open"];
+function isPriceLike(claim: string, rawVal: string): boolean {
+  const combined = `${claim} ${rawVal}`.toLowerCase();
+  return priceKeywords.some((kw) => combined.includes(kw));
+}
+
+const shortTermKeywords = ["today", "daily", "intraday", "session", "overnight", "hours ago", "rose ", "fell ", "gained ", "lost ", "up ", "down ", "% today", "% daily"];
+const longTermKeywords = ["resistance", "trend", "horizon", "outlook", "support", "bearish", "bullish", "moving average", "years", "long-term", "sec", "annual", "quarterly", "year", "growth rate", "cagr", "valuation model", "target price"];
+
+function hasKeyword(text: string, keywords: string[]): boolean {
+  const lower = text.toLowerCase();
+  return keywords.some((kw) => lower.includes(kw));
+}
+
+function isTemporalMismatch(claimA: string, claimB: string): boolean {
+  const isST_A = hasKeyword(claimA, shortTermKeywords);
+  const isST_B = hasKeyword(claimB, shortTermKeywords);
+  const isLT_A = hasKeyword(claimA, longTermKeywords);
+  const isLT_B = hasKeyword(claimB, longTermKeywords);
+
+  if ((isST_A && isLT_B) || (isST_B && isLT_A)) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Helper to calculate breakdown for a specific category
@@ -144,7 +178,7 @@ function calculateEvidenceQualityBreakdown(
  */
 export function calculateScores(
   evidenceList: readonly Evidence[],
-  contradictionsList: { severity: string }[],
+  contradictionsList: { severity: string; evidenceIdA?: string; evidenceIdB?: string }[],
   isSufficient = true
 ): ResearchScores {
   // 1. Calculate breakdowns for category scores
@@ -157,7 +191,46 @@ export function calculateScores(
 
   // 2. Calculate contradiction penalty
   let contradictionPenalty = 0;
+  const filteredContradictions = [];
+  const evidenceMap = new Map(evidenceList.map((e) => [e.id, e]));
+
   for (const c of contradictionsList) {
+    const itemA = c.evidenceIdA ? evidenceMap.get(c.evidenceIdA) : null;
+    const itemB = c.evidenceIdB ? evidenceMap.get(c.evidenceIdB) : null;
+
+    if (itemA && itemB) {
+      // 1. Check numeric price compatibility
+      if (isPriceLike(itemA.claim, itemA.rawValue || "") && isPriceLike(itemB.claim, itemB.rawValue || "")) {
+        const valA = extractNumericValue(itemA.rawValue || itemA.claim);
+        const valB = extractNumericValue(itemB.rawValue || itemB.claim);
+        if (valA !== null && valB !== null) {
+          const diff = Math.abs(valA - valB);
+          const maxVal = Math.max(valA, valB);
+          const relativeDiff = maxVal > 0 ? diff / maxVal : 0;
+          if (relativeDiff < 0.02 || diff < 1.0) {
+            logger.info("Contradiction Filter: Skipped penalty for immaterial price variance", {
+              claimA: itemA.claim,
+              claimB: itemB.claim,
+              valA,
+              valB,
+            });
+            continue;
+          }
+        }
+      }
+
+      // 2. Check temporal scope mismatch
+      if (isTemporalMismatch(itemA.claim, itemB.claim)) {
+        logger.info("Contradiction Filter: Skipped penalty due to temporal scope mismatch", {
+          claimA: itemA.claim,
+          claimB: itemB.claim,
+        });
+        continue;
+      }
+    }
+
+    filteredContradictions.push(c);
+
     const sev = c.severity.toLowerCase();
     if (sev === "high") {
       contradictionPenalty += SCORING_CONFIG.penalties.contradiction.high;
@@ -168,9 +241,9 @@ export function calculateScores(
     }
   }
 
-  if (contradictionsList.length > 0) {
+  if (filteredContradictions.length > 0) {
     riskBreakdown.negativeImpacts.push(
-      `Detected ${contradictionsList.length} contradiction(s) in evidence, resulting in a -${contradictionPenalty} final score penalty.`
+      `Detected ${filteredContradictions.length} contradiction(s) in evidence, resulting in a -${contradictionPenalty} final score penalty.`
     );
     riskBreakdown.contributingFactors.push(
       `Applied contradiction penalty of -${contradictionPenalty} due to conflicts.`

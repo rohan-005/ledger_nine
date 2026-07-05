@@ -115,7 +115,12 @@ function EvidenceCard({ item }: { item: EvidenceItem }) {
           </a>
         ) : (
           <span className="text-[11px] text-foreground-muted">
-            Internal database calculation / context
+            {item.sourceType === "sec" && "Source: SEC Regulatory Filing"}
+            {item.sourceType === "fmp" && "Source: Financial Data Provider"}
+            {item.sourceType === "tavily" && "Source: Web Research"}
+            {item.sourceType === "alpha_vantage" && "Source: Market Data Provider"}
+            {item.sourceType === "llm_inference" && "Source: Analytical Context"}
+            {!["sec", "fmp", "tavily", "alpha_vantage", "llm_inference"].includes(item.sourceType) && "Source: External research"}
           </span>
         )}
       </div>
@@ -123,7 +128,7 @@ function EvidenceCard({ item }: { item: EvidenceItem }) {
   );
 }
 
-export default function EvidenceExplorer({ evidence }: { evidence: EvidenceItem[] }) {
+export default function EvidenceExplorer({ evidence, hideCharts = false }: { evidence: EvidenceItem[]; hideCharts?: boolean }) {
   const [categoryFilter, setCategoryFilter] = useState<"all" | EvidenceCategory>("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | EvidenceSourceType>("all");
 
@@ -151,7 +156,7 @@ export default function EvidenceExplorer({ evidence }: { evidence: EvidenceItem[
       </p>
 
       {/* Visual Mix Charts */}
-      {evidence.length > 0 && (
+      {!hideCharts && evidence.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="bg-white">
             <h3 className="text-xs font-bold text-foreground-muted uppercase tracking-wider mb-2">

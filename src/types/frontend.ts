@@ -1,7 +1,7 @@
 // ─── Primitives ──────────────────────────────────────────────────────────────
 
-export type ResearchStatus = "queued" | "running" | "completed" | "failed";
-export type ResearchOutcome = "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded";
+export type ResearchStatus = "queued" | "running" | "completed" | "failed" | "interrupted";
+export type ResearchOutcome = "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded" | "interrupted" | "failed";
 export type RiskTolerance = "low" | "moderate" | "high";
 export type DecisionType = "INVEST" | "PASS";
 export type EvidenceCategory = "business" | "financial" | "valuation" | "news" | "risk";

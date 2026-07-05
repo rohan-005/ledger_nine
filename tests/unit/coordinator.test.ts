@@ -38,6 +38,7 @@ vi.mock("@/src/db/repositories/agent-run.repository", () => ({
   agentRunRepository: {
     getAgentRunsByResearchId: vi.fn().mockResolvedValue([
       { agentId: "sec", status: "completed" },
+      { agentId: "financial", status: "completed" },
     ]),
     upsertAgentRun: vi.fn().mockResolvedValue({}),
   },
@@ -80,7 +81,7 @@ vi.mock("@/src/core/agents/orchestrator", () => ({
       researchId: "run_abc",
       claim: "Strong moat",
       category: "business",
-      sourceType: "sec",
+      sourceType: "fmp",
       confidence: 1.0,
       sourceQuality: 1.0,
       agentId: "business",
@@ -230,7 +231,8 @@ describe("Consensus Engine & Research Coordinator Tests", () => {
         "Apple Inc.",
         "sufficient",
         [],
-        []
+        [],
+        "completed"
       );
     });
   });

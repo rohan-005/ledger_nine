@@ -72,7 +72,8 @@ function ResearchHeader({ summary }: { summary: ResearchSummary }) {
         </span>
         {run.completedAt && (
           <span className="text-foreground-muted font-normal ml-auto">
-            Run Completed: {new Date(run.completedAt).toLocaleString()}
+            {run.status === "interrupted" ? "Research Interrupted: " : "Run Completed: "}
+            {new Date(run.completedAt).toLocaleString()}
           </span>
         )}
       </div>
@@ -286,9 +287,13 @@ export default function ResearchPageClient({ id }: { id: string }) {
   }
 
   const showDetailedResults =
-    run.outcome === "sufficient" ||
-    run.outcome === "synthesis_degraded" ||
-    !run.outcome;
+    run.status === "completed" &&
+    run.outcome !== "provider_failure" &&
+    run.outcome !== "partial" &&
+    run.outcome !== "interrupted" &&
+    run.outcome !== "insufficient_evidence" &&
+    run.outcome !== "asset_unresolved" &&
+    run.outcome !== "failed";
 
   const finalScore = score ? parseScore(score.finalScore) : 0;
   const confidence = score ? parseScore(score.evidenceQuality) : 0;
@@ -339,6 +344,9 @@ export default function ResearchPageClient({ id }: { id: string }) {
                 if (reason === "NO_FINANCIAL_EVIDENCE") return <li key={idx}>Missing fundamental financial or financial statements data.</li>;
                 if (reason === "INSUFFICIENT_CATEGORY_COVERAGE") return <li key={idx}>Insufficient coverage across different analysis categories.</li>;
                 if (reason === "CRITICAL_AGENT_FAILURES") return <li key={idx}>A critical agent failed during execution.</li>;
+                if (reason === "INSUFFICIENT_SPECIALIST_COVERAGE") return <li key={idx}>Completed specialist checks were insufficient to fulfill coverage gates (at least 2 successful agents required).</li>;
+                if (reason === "INSUFFICIENT_SOURCE_DIVERSITY") return <li key={idx}>Failed to establish diverse data source provenance (at least 2 unique source types required).</li>;
+                if (reason === "NO_REGULATORY_EVIDENCE") return <li key={idx}>Regulatory filings (SEC) required for US assets could not be retrieved.</li>;
                 return <li key={idx}>{reason}</li>;
               })}
             </ul>
@@ -356,15 +364,18 @@ export default function ResearchPageClient({ id }: { id: string }) {
         )}
       </div>
     );
-  } else if (run.outcome === "provider_failure" || run.outcome === "partial") {
+  } else if (run.status === "interrupted" || run.outcome === "provider_failure" || run.outcome === "partial" || run.outcome === "interrupted") {
     warningBanner = (
       <div className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs">
         <div className="flex items-center gap-3">
           <span className="text-2xl select-none">⚠️</span>
           <h2 className="text-lg font-bold">Research Interrupted</h2>
         </div>
-        <p className="text-sm text-rose-800 leading-relaxed">
-          A critical error or service disruption with external data providers occurred. This is not a problem with the ticker, but rather a transient provider API issue.
+        <p className="text-sm font-bold text-rose-800">
+          The audit was stopped. We did not formulate a rating.
+        </p>
+        <p className="text-sm text-rose-850 leading-relaxed">
+          The research run did not complete successfully due to service limitations or data execution failures. No final scores or ratings could be calculated.
         </p>
         {run.researchLimitations && run.researchLimitations.length > 0 && (
           <div className="border-t border-rose-200 pt-3 space-y-2">
@@ -441,7 +452,7 @@ export default function ResearchPageClient({ id }: { id: string }) {
       {/* Evidence Explorer */}
       {evidence && evidence.length > 0 && (
         <div id="evidence" className="scroll-mt-20">
-          <EvidenceExplorer evidence={evidence} />
+          <EvidenceExplorer evidence={evidence} hideCharts={!showDetailedResults} />
         </div>
       )}
 
@@ -458,6 +469,13 @@ export default function ResearchPageClient({ id }: { id: string }) {
           <AgentRunsPanel agentRuns={agents} />
         </div>
       )}
+
+      {/* Global Footer */}
+      <footer className="text-center text-xs text-foreground-muted border-t border-border/60 pt-8 mt-12 pb-6">
+        <p>
+          Where an investment assessment is produced, scoring follows deterministic rules. If research is interrupted, scores are withheld.
+        </p>
+      </footer>
     </div>
   );
 }
