@@ -1,0 +1,57 @@
+import { ConfigurationError } from "./errors";
+
+export function getGeminiApiKey(): string {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new ConfigurationError("GEMINI_API_KEY is not configured in environment variables.");
+  }
+  return key;
+}
+
+export function getGroqApiKey(): string {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) {
+    throw new ConfigurationError("GROQ_API_KEY is not configured in environment variables.");
+  }
+  return key;
+}
+
+export function getTavilyApiKey(): string {
+  const key = process.env.TAVILY_API_KEY;
+  if (!key) {
+    throw new ConfigurationError("TAVILY_API_KEY is not configured in environment variables.");
+  }
+  return key;
+}
+
+export function getFmpApiKey(): string {
+  const key = process.env.FMP_API_KEY;
+  if (!key) {
+    throw new ConfigurationError("FMP_API_KEY is not configured in environment variables.");
+  }
+  return key;
+}
+
+export function getAlphaVantageApiKey(): string {
+  const key = process.env.ALPHA_VANTAGE_API_KEY;
+  if (!key) {
+    throw new ConfigurationError("ALPHA_VANTAGE_API_KEY is not configured in environment variables.");
+  }
+  return key;
+}
+
+export function getSecEdgarUserAgent(): string {
+  const key = process.env.SEC_EDGAR_USER_AGENT;
+  if (!key) {
+    throw new ConfigurationError("SEC_EDGAR_USER_AGENT is not configured in environment variables.");
+  }
+  return key;
+}
+
+export function getDatabaseUrl(): string {
+  const key = process.env.DATABASE_URL;
+  if (!key) {
+    throw new ConfigurationError("DATABASE_URL is not configured in environment variables.");
+  }
+  return key;
+}
