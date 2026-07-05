@@ -283,3 +283,50 @@ describe("score display logic", () => {
     expect(clamp(74.2)).toBeCloseTo(74.2);
   });
 });
+
+// ─── Presentation Helpers ─────────────────────────────────────────────────────
+
+import {
+  getScoreBand,
+  getFriendlyVerdict,
+  getFriendlySourceName,
+  getFriendlyNodeName,
+} from "@/src/lib/presentation/helpers";
+
+describe("presentation helpers", () => {
+  it("getScoreBand maps score to correct band details", () => {
+    expect(getScoreBand(90).label).toBe("Excellent");
+    expect(getScoreBand(75).label).toBe("Strong");
+    expect(getScoreBand(60).label).toBe("Mixed");
+    expect(getScoreBand(45).label).toBe("Weak");
+    expect(getScoreBand(20).label).toBe("Poor");
+  });
+
+  it("getFriendlyVerdict translates decisions based on thresholds", () => {
+    const v1 = getFriendlyVerdict("INVEST", 80, 80);
+    expect(v1.label).toBe("Worth a closer look");
+
+    const v2 = getFriendlyVerdict("INVEST", 70, 50);
+    expect(v2.label).toBe("Promising, but review the risks");
+
+    const v3 = getFriendlyVerdict("PASS", 60, 60);
+    expect(v3.label).toBe("Proceed with caution");
+
+    const v4 = getFriendlyVerdict("PASS", 40, 40);
+    expect(v4.label).toBe("Not compelling right now");
+  });
+
+  it("getFriendlySourceName formats internal types", () => {
+    expect(getFriendlySourceName("sec")).toBe("Company filing (SEC)");
+    expect(getFriendlySourceName("fmp")).toBe("Financial data (FMP)");
+    expect(getFriendlySourceName("tavily")).toBe("News & web research (Tavily)");
+    expect(getFriendlySourceName("unknown")).toBe("Unknown");
+  });
+
+  it("getFriendlyNodeName formats execution steps", () => {
+    expect(getFriendlyNodeName("specialists")).toContain("domains");
+    expect(getFriendlyNodeName("contradictions")).toContain("claims");
+    expect(getFriendlyNodeName("unknown_node")).toBe("unknown_node");
+  });
+});
+

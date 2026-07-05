@@ -12,6 +12,9 @@ export const researchRuns = pgTable(
     status: varchar("status", { length: 32 }).notNull(), // "queued" | "running" | "completed" | "failed"
     currentNode: varchar("current_node", { length: 128 }),
     errorMessage: text("error_message"),
+    outcome: varchar("outcome", { length: 64 }), // "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial"
+    insufficiencyReasons: text("insufficiency_reasons"), // stringified JSON array of reasons
+    researchLimitations: text("research_limitations"), // stringified JSON array of limitations
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -105,15 +108,15 @@ export const researchScores = pgTable(
       .notNull()
       .unique()
       .references(() => researchRuns.id, { onDelete: "cascade" }),
-    business: numeric("business").notNull(),
-    financial: numeric("financial").notNull(),
-    valuation: numeric("valuation").notNull(),
-    news: numeric("news").notNull(),
-    risk: numeric("risk").notNull(),
-    evidenceQuality: numeric("evidence_quality").notNull(),
-    contradictionPenalty: numeric("contradiction_penalty").notNull(),
-    finalScore: numeric("final_score").notNull(),
-    decision: varchar("decision", { length: 32 }).notNull(), // "INVEST" | "PASS"
+    business: numeric("business"),
+    financial: numeric("financial"),
+    valuation: numeric("valuation"),
+    news: numeric("news"),
+    risk: numeric("risk"),
+    evidenceQuality: numeric("evidence_quality"),
+    contradictionPenalty: numeric("contradiction_penalty"),
+    finalScore: numeric("final_score"),
+    decision: varchar("decision", { length: 32 }), // "INVEST" | "PASS"
     scoreBreakdown: text("score_breakdown"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   }

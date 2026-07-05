@@ -4,13 +4,14 @@ import { runSecAgent } from "./sec.agent";
 import { runMacroAgent } from "./macro.agent";
 import { runEarningsAgent } from "./earnings.agent";
 import { logger } from "@/src/lib/logger";
+import { AssetIdentity } from "@/src/lib/research/asset-identity";
 
-export async function orchestrateSpecialists(researchId: string, ticker: string) {
+export async function orchestrateSpecialists(researchId: string, ticker: string, identity: AssetIdentity) {
   logger.info("Orchestrator: Executing specialist agents in parallel", { researchId, ticker });
 
   const results = await Promise.allSettled([
     runFinancialAgent(researchId, ticker),
-    runSecAgent(researchId, ticker),
+    runSecAgent(researchId, ticker, undefined, identity),
     runMacroAgent(researchId, ticker),
     runEarningsAgent(researchId, ticker),
   ]);

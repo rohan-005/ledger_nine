@@ -15,6 +15,13 @@
       "when": 1783237372776,
       "tag": "0001_cool_william_stryker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783256167597,
+      "tag": "0002_unusual_wonder_man",
+      "breakpoints": true
     }
   ]
 }

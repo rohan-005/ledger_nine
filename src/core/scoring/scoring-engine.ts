@@ -13,8 +13,8 @@ function calculateCategoryBreakdown(
   
   if (catEvidence.length === 0) {
     return {
-      score: 50,
-      contributingFactors: ["No evidence available for this category. Defaulted to neutral score of 50."],
+      score: null,
+      contributingFactors: ["No evidence available for this category."],
       positiveImpacts: [],
       negativeImpacts: [],
       relevantEvidenceIds: [],
@@ -88,8 +88,8 @@ function calculateEvidenceQualityBreakdown(
 ): ScoreCategoryBreakdown {
   if (evidenceList.length === 0) {
     return {
-      score: 50,
-      contributingFactors: ["No evidence available to assess quality. Defaulted to neutral score of 50."],
+      score: null,
+      contributingFactors: ["No evidence available to assess quality."],
       positiveImpacts: [],
       negativeImpacts: [],
       relevantEvidenceIds: [],
@@ -144,7 +144,8 @@ function calculateEvidenceQualityBreakdown(
  */
 export function calculateScores(
   evidenceList: readonly Evidence[],
-  contradictionsList: { severity: string }[]
+  contradictionsList: { severity: string }[],
+  isSufficient = true
 ): ResearchScores {
   // 1. Calculate breakdowns for category scores
   const businessBreakdown = calculateCategoryBreakdown("business", evidenceList);
@@ -176,24 +177,64 @@ export function calculateScores(
     );
   }
 
+  // If research is insufficient, return null scores and null decision
+  if (!isSufficient) {
+    return {
+      business: null,
+      financial: null,
+      valuation: null,
+      news: null,
+      risk: null,
+      evidenceQuality: null,
+      contradictionPenalty,
+      final: null,
+      decision: null,
+      breakdown: {
+        business: businessBreakdown,
+        financial: financialBreakdown,
+        valuation: valuationBreakdown,
+        news: newsBreakdown,
+        risk: riskBreakdown,
+        evidenceQuality: evidenceQualityBreakdown,
+      },
+    };
+  }
+
   // 3. Compute weighted score
   const { weights, thresholds } = SCORING_CONFIG;
-  const weightedScore =
-    businessBreakdown.score * weights.business +
-    financialBreakdown.score * weights.financial +
-    valuationBreakdown.score * weights.valuation +
-    newsBreakdown.score * weights.news +
-    riskBreakdown.score * weights.risk +
-    evidenceQualityBreakdown.score * weights.evidenceQuality;
 
-  let finalScore = Math.max(0, Math.min(100, weightedScore - contradictionPenalty));
+  const categoryScores = [
+    { score: businessBreakdown.score, weight: weights.business },
+    { score: financialBreakdown.score, weight: weights.financial },
+    { score: valuationBreakdown.score, weight: weights.valuation },
+    { score: newsBreakdown.score, weight: weights.news },
+    { score: riskBreakdown.score, weight: weights.risk },
+    { score: evidenceQualityBreakdown.score, weight: weights.evidenceQuality },
+  ];
+
+  let weightedScoreSum = 0;
+  let activeWeightSum = 0;
+
+  for (const item of categoryScores) {
+    if (item.score !== null) {
+      weightedScoreSum += item.score * item.weight;
+      activeWeightSum += item.weight;
+    }
+  }
+
+  const baseWeightedScore = activeWeightSum > 0 ? weightedScoreSum / activeWeightSum : null;
+
+  let finalScore: number | null = null;
+  if (baseWeightedScore !== null) {
+    finalScore = Math.max(0, Math.min(100, baseWeightedScore - contradictionPenalty));
+  }
 
   // 4. Apply guardrails
   // Guardrail A: If essential financial evidence from primary sources (SEC/FMP) is missing, penalize
   const hasFinancialPrimary = evidenceList.some(
     (e) => e.category === "financial" && (e.sourceType === "fmp" || e.sourceType === "sec")
   );
-  if (!hasFinancialPrimary) {
+  if (!hasFinancialPrimary && finalScore !== null) {
     finalScore = Math.max(0, finalScore - 10);
     financialBreakdown.negativeImpacts.push(
       "Missing essential financial evidence from primary sources (SEC/FMP). Applied a -10.00 final score penalty."
@@ -204,22 +245,26 @@ export function calculateScores(
   }
 
   // Guardrail B: If evidence quality is critically low, force PASS
-  const isEvidenceQualityCritical = evidenceQualityBreakdown.score < thresholds.criticalEvidenceQuality;
+  const isEvidenceQualityCritical = evidenceQualityBreakdown.score !== null && evidenceQualityBreakdown.score < thresholds.criticalEvidenceQuality;
   if (isEvidenceQualityCritical) {
     evidenceQualityBreakdown.negativeImpacts.push(
-      `Critical evidence quality score (${evidenceQualityBreakdown.score.toFixed(2)}) is below the threshold of ${thresholds.criticalEvidenceQuality}. PASS decision forced.`
+      `Critical evidence quality score (${evidenceQualityBreakdown.score?.toFixed(2)}) is below the threshold of ${thresholds.criticalEvidenceQuality}. PASS decision forced.`
     );
     evidenceQualityBreakdown.contributingFactors.push(
       `Forced PASS decision due to critical evidence quality.`
     );
   }
   
-  let decision: InvestmentDecision = "PASS";
-  if (finalScore >= thresholds.decision && !isEvidenceQualityCritical) {
-    decision = "INVEST";
+  let decision: InvestmentDecision | null = null;
+  if (finalScore !== null) {
+    if (finalScore >= thresholds.decision && !isEvidenceQualityCritical) {
+      decision = "INVEST";
+    } else {
+      decision = "PASS";
+    }
   }
 
-  const roundedFinalScore = Math.round(finalScore * 100) / 100;
+  const roundedFinalScore = finalScore !== null ? Math.round(finalScore * 100) / 100 : null;
 
   return {
     business: businessBreakdown.score,

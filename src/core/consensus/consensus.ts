@@ -219,7 +219,8 @@ Based on the evidence pool and scores, generate a JSON object with the following
         createdAt: new Date(),
       };
 
-      return await reportRepository.upsertReport(reportData);
+      await reportRepository.upsertReport(reportData);
+      return { success: true, report: reportData };
     } catch (parseError: any) {
       logger.error("Committee: Failed to parse synthesized report JSON, using degraded report", {
         researchId,
@@ -228,28 +229,19 @@ Based on the evidence pool and scores, generate a JSON object with the following
     }
   }
 
-  // 3. Graceful degradation: write a degraded/fallback report row so the coordinator finishes successfully
-  logger.warn("Committee: Writing degraded fallback report to database", { researchId });
+  // 3. Graceful degradation: write a degraded/fallback report row with empty values
+  logger.warn("Committee: Writing empty fallback report to database", { researchId });
   const degradedReport = {
     id: generateId("rep"),
     researchId,
-    thesis: `Graceful degradation: Institutional-grade report synthesis unavailable due to LLM provider limits or quotas. Deterministic score is ${scores.final} (${scores.decision}).`,
-    bullCase: JSON.stringify([
-      "Business Model & Quality Score: " + scores.business,
-      "Financial Health & Capital Allocation Score: " + scores.financial,
-      "Valuation & Price Safety Score: " + scores.valuation
-    ]),
-    bearCase: JSON.stringify([
-      "News & Macro Sentiment Score: " + scores.news,
-      "Identified Risk Factors Score: " + scores.risk,
-      "Contradiction Penalty Applied: " + scores.contradictionPenalty
-    ]),
-    keyRisks: JSON.stringify([
-      "LLM Synthesis Limitation: Gemini 2.5 Pro quota limits hit. Report generated using degraded mode."
-    ]),
-    summary: `The deterministic scoring system successfully analyzed ticker ${ticker.toUpperCase()} with a final score of ${scores.final}/100 and a recommendation of ${scores.decision}. Dynamic report synthesis could not be completed, but all raw evidence items and contradiction records are fully preserved and queryable.`,
+    thesis: "",
+    bullCase: JSON.stringify([]),
+    bearCase: JSON.stringify([]),
+    keyRisks: JSON.stringify([]),
+    summary: "",
     createdAt: new Date(),
   };
 
-  return await reportRepository.upsertReport(degradedReport);
+  await reportRepository.upsertReport(degradedReport);
+  return { success: false, report: degradedReport };
 }

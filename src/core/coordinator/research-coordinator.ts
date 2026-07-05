@@ -7,6 +7,11 @@ import { orchestrateSpecialists } from "../agents/orchestrator";
 import { runContradictionDetector, synthesizeResearchReport } from "../consensus/consensus";
 import { calculateScores } from "../scoring/scoring-engine";
 import { fmpClient } from "@/src/integrations/fmp/fmp.client";
+import { parseAssetProfile } from "@/src/lib/research/asset-identity";
+import { checkSufficiency } from "@/src/lib/research/sufficiency";
+import { sanitizeErrorMessage } from "@/src/lib/errors-sanitizer";
+import { agentRunRepository } from "@/src/db/repositories/agent-run.repository";
+import { reportRepository } from "@/src/db/repositories/report.repository";
 
 export const researchCoordinator = {
   /**
@@ -55,20 +60,48 @@ export const researchCoordinator = {
     await researchRepository.updateStatus(researchId, "running");
 
     try {
-      // 1. Fetch Company Name
-      let companyName = ticker;
+      // 1. Fetch Company Name & Resolve Asset Identity
+      let profilePayload: Record<string, any> | null = null;
       try {
-        const profile = await fmpClient.getCompanyProfile(ticker);
-        if (profile && typeof profile.companyName === "string") {
-          companyName = profile.companyName;
-        }
+        profilePayload = await fmpClient.getCompanyProfile(ticker);
       } catch (err) {
-        logger.warn("Coordinator: Failed to retrieve company profile, using ticker as name", { ticker, error: err });
+        logger.warn("Coordinator: Failed to retrieve company profile", { ticker, error: err });
       }
+
+      const identity = parseAssetProfile(ticker, profilePayload);
+
+      // Asset Resolution check: exit early if ticker is unresolved
+      if (!identity.resolved) {
+        logger.info("Coordinator: Asset unresolved. Exiting early.", { researchId, ticker });
+        
+        // Write empty report row so DB queries find it
+        await reportRepository.upsertReport({
+          id: generateId("rep"),
+          researchId,
+          thesis: "",
+          bullCase: JSON.stringify([]),
+          bearCase: JSON.stringify([]),
+          keyRisks: JSON.stringify([]),
+          summary: "",
+          createdAt: new Date(),
+        });
+
+        await researchRepository.updateCurrentNode(researchId, "completed");
+        await researchRepository.markCompleted(
+          researchId,
+          ticker,
+          "asset_unresolved",
+          ["UNRESOLVED_TICKER"],
+          []
+        );
+        return;
+      }
+
+      const companyName = identity.companyName || ticker;
 
       // 2. Run Specialist Agents in parallel
       await researchRepository.updateCurrentNode(researchId, "specialists");
-      const evidenceList = await orchestrateSpecialists(researchId, ticker);
+      const evidenceList = await orchestrateSpecialists(researchId, ticker, identity);
 
       // 3. Detect Contradictions
       await researchRepository.updateCurrentNode(researchId, "contradictions");
@@ -88,39 +121,84 @@ export const researchCoordinator = {
         });
       }
 
-      // 4. Calculate Scores
-      await researchRepository.updateCurrentNode(researchId, "scoring");
-      const scores = calculateScores(evidenceList, contradictionsList);
+      // 4. Retrieve agent runs to perform Sufficiency Check
+      const agentRuns = await agentRunRepository.getAgentRunsByResearchId(researchId);
+      const isUSAsset = identity.country === "US" || identity.country === "United States" ||
+        (identity.exchange?.toUpperCase() || "").includes("NASDAQ") ||
+        (identity.exchange?.toUpperCase() || "").includes("NYSE");
 
-      // Save scores to DB
+      const sufficiencyResult = checkSufficiency(evidenceList, agentRuns, isUSAsset);
+
+      // 5. Calculate Scores with Sufficiency status
+      await researchRepository.updateCurrentNode(researchId, "scoring");
+      const scores = calculateScores(evidenceList, contradictionsList, sufficiencyResult.sufficient);
+
+      // Save scores to DB (scores will be nullable if sufficiency gate is blocked)
       await scoreRepository.upsertScore({
         id: generateId("score"),
         researchId,
-        business: String(scores.business),
-        financial: String(scores.financial),
-        valuation: String(scores.valuation),
-        news: String(scores.news),
-        risk: String(scores.risk),
-        evidenceQuality: String(scores.evidenceQuality),
-        contradictionPenalty: String(scores.contradictionPenalty),
-        finalScore: String(scores.final),
+        business: scores.business !== null ? String(scores.business) : null,
+        financial: scores.financial !== null ? String(scores.financial) : null,
+        valuation: scores.valuation !== null ? String(scores.valuation) : null,
+        news: scores.news !== null ? String(scores.news) : null,
+        risk: scores.risk !== null ? String(scores.risk) : null,
+        evidenceQuality: scores.evidenceQuality !== null ? String(scores.evidenceQuality) : null,
+        contradictionPenalty: scores.contradictionPenalty !== null ? String(scores.contradictionPenalty) : null,
+        finalScore: scores.final !== null ? String(scores.final) : null,
         decision: scores.decision,
         scoreBreakdown: scores.breakdown ? JSON.stringify(scores.breakdown) : null,
         createdAt: new Date(),
       });
 
-      // 5. Synthesize Research Report
-      await researchRepository.updateCurrentNode(researchId, "committee");
-      await synthesizeResearchReport(researchId, ticker, evidenceList, scores);
+      // 6. Synthesize Research Report or Degradation Fallback
+      let finalOutcome: "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded" = sufficiencyResult.outcome;
+      
+      if (sufficiencyResult.sufficient) {
+        await researchRepository.updateCurrentNode(researchId, "committee");
+        const synthesisResult = await synthesizeResearchReport(researchId, ticker, evidenceList, scores);
+        
+        if (!synthesisResult.success) {
+          finalOutcome = "synthesis_degraded";
+          sufficiencyResult.limitations.push("LLM Report Synthesis failed due to provider limits.");
+        }
+      } else {
+        logger.warn("Coordinator: Research insufficient, skipping report synthesis", {
+          researchId,
+          reasons: sufficiencyResult.reasons,
+        });
+        
+        // Write empty report row so frontend DB query doesn't miss the relation
+        await reportRepository.upsertReport({
+          id: generateId("rep"),
+          researchId,
+          thesis: "",
+          bullCase: JSON.stringify([]),
+          bearCase: JSON.stringify([]),
+          keyRisks: JSON.stringify([]),
+          summary: "",
+          createdAt: new Date(),
+        });
+      }
 
-      // 6. Complete Run
+      // 7. Complete Run
       await researchRepository.updateCurrentNode(researchId, "completed");
-      await researchRepository.markCompleted(researchId, companyName);
+      await researchRepository.markCompleted(
+        researchId,
+        companyName,
+        finalOutcome,
+        sufficiencyResult.reasons,
+        sufficiencyResult.limitations
+      );
 
       logger.info("Coordinator: Pipeline successfully finished execution", { researchId, ticker });
     } catch (error: any) {
       logger.error("Coordinator: Pipeline execution failed", { researchId, error });
-      await researchRepository.markFailed(researchId, error.message || String(error));
+      const userSafeErrorMessage = sanitizeErrorMessage(error.message || String(error));
+      try {
+        await researchRepository.markFailed(researchId, userSafeErrorMessage);
+      } catch (dbErr) {
+        logger.warn("Coordinator: Failed to mark run as failed in database", { dbErr });
+      }
       throw error;
     }
   }

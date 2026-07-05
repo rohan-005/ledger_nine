@@ -1,7 +1,7 @@
 export type InvestmentDecision = "INVEST" | "PASS";
 
 export interface ScoreCategoryBreakdown {
-  score: number;
+  score: number | null;
   contributingFactors: string[];
   positiveImpacts: string[];
   negativeImpacts: string[];
@@ -18,14 +18,14 @@ export interface ScoreBreakdown {
 }
 
 export interface ResearchScores {
-  business: number;      // 0..100
-  financial: number;     // 0..100
-  valuation: number;     // 0..100
-  news: number;          // 0..100
-  risk: number;          // 0..100 (high score means lower/better risk profile)
-  evidenceQuality: number; // 0..100
-  contradictionPenalty: number; // deducted after weighted score
-  final: number;         // 0..100
-  decision: InvestmentDecision;
+  business: number | null;      // 0..100
+  financial: number | null;     // 0..100
+  valuation: number | null;     // 0..100
+  news: number | null;          // 0..100
+  risk: number | null;          // 0..100 (high score means lower/better risk profile)
+  evidenceQuality: number | null; // 0..100
+  contradictionPenalty: number | null; // deducted after weighted score
+  final: number | null;         // 0..100
+  decision: InvestmentDecision | null;
   breakdown?: ScoreBreakdown;
 }

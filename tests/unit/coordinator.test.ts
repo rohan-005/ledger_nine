@@ -12,7 +12,7 @@ import { Evidence } from "@/src/core/evidence/evidence.types";
 // Mock the integrations
 vi.mock("@/src/integrations/fmp/fmp.client", () => ({
   fmpClient: {
-    getCompanyProfile: vi.fn().mockResolvedValue({ companyName: "Apple Inc." }),
+    getCompanyProfile: vi.fn().mockResolvedValue({ symbol: "AAPL", companyName: "Apple Inc." }),
   },
 }));
 
@@ -31,6 +31,15 @@ vi.mock("@/src/db/repositories/research.repository", () => ({
     updateCurrentNode: vi.fn().mockResolvedValue({}),
     markCompleted: vi.fn().mockResolvedValue({}),
     markFailed: vi.fn().mockResolvedValue({}),
+  },
+}));
+
+vi.mock("@/src/db/repositories/agent-run.repository", () => ({
+  agentRunRepository: {
+    getAgentRunsByResearchId: vi.fn().mockResolvedValue([
+      { agentId: "sec", status: "completed" },
+    ]),
+    upsertAgentRun: vi.fn().mockResolvedValue({}),
   },
 }));
 
@@ -69,12 +78,23 @@ vi.mock("@/src/core/agents/orchestrator", () => ({
     {
       id: "ev_2",
       researchId: "run_abc",
-      claim: "Declining revenues",
-      category: "financial",
+      claim: "Strong moat",
+      category: "business",
       sourceType: "sec",
-      confidence: 0.9,
-      sourceQuality: 0.9,
-      agentId: "sec",
+      confidence: 1.0,
+      sourceQuality: 1.0,
+      agentId: "business",
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: "ev_3",
+      researchId: "run_abc",
+      claim: "Fair valuation",
+      category: "valuation",
+      sourceType: "sec",
+      confidence: 1.0,
+      sourceQuality: 1.0,
+      agentId: "valuation",
       createdAt: new Date().toISOString(),
     },
   ]),
@@ -173,9 +193,9 @@ describe("Consensus Engine & Research Coordinator Tests", () => {
       };
 
       const result = await synthesizeResearchReport("run_abc", "AAPL", [], mockScores);
-      expect(result.thesis).toBe("AAPL is a strong buy.");
-      expect(JSON.parse(result.bullCase)).toContain("Moat is wide");
-      expect(JSON.parse(result.keyRisks)).toContain("Regulatory scrutiny");
+      expect(result.report.thesis).toBe("AAPL is a strong buy.");
+      expect(JSON.parse(result.report.bullCase)).toContain("Moat is wide");
+      expect(JSON.parse(result.report.keyRisks)).toContain("Regulatory scrutiny");
       expect(reportRepository.upsertReport).toHaveBeenCalled();
     });
   });
@@ -205,7 +225,13 @@ describe("Consensus Engine & Research Coordinator Tests", () => {
       expect(researchRepository.updateCurrentNode).toHaveBeenCalledWith("run_abc", "scoring");
       expect(researchRepository.updateCurrentNode).toHaveBeenCalledWith("run_abc", "committee");
       expect(scoreRepository.upsertScore).toHaveBeenCalled();
-      expect(researchRepository.markCompleted).toHaveBeenCalledWith("run_abc", "Apple Inc.");
+      expect(researchRepository.markCompleted).toHaveBeenCalledWith(
+        "run_abc",
+        "Apple Inc.",
+        "sufficient",
+        [],
+        []
+      );
     });
   });
 });

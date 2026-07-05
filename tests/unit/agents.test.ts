@@ -84,8 +84,18 @@ describe("Specialist Orchestrator Tests", () => {
   it("should successfully run all four specialist agents in parallel and return aggregated evidence", async () => {
     const researchId = "res_abc123";
     const ticker = "AAPL";
+    const mockIdentity = {
+      symbol: "AAPL",
+      companyName: "Apple Inc.",
+      exchange: "NASDAQ",
+      country: "US",
+      market: "NASDAQ",
+      currency: "USD",
+      cik: "0000320193",
+      resolved: true,
+    };
 
-    const allEvidence = await orchestrateSpecialists(researchId, ticker);
+    const allEvidence = await orchestrateSpecialists(researchId, ticker, mockIdentity);
 
     // Verify all clients are invoked
     expect(fmpClient.getCompanyProfile).toHaveBeenCalledWith(ticker);

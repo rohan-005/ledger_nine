@@ -32,11 +32,20 @@ export const researchRepository = {
     }).where(eq(researchRuns.id, id));
   },
 
-  async markCompleted(id: string, companyName?: string) {
+  async markCompleted(
+    id: string,
+    companyName?: string,
+    outcome?: "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded",
+    insufficiencyReasons?: string[],
+    researchLimitations?: string[]
+  ) {
     const db = getDb();
     await db.update(researchRuns).set({
       status: "completed",
       companyName: companyName || null,
+      outcome: outcome || null,
+      insufficiencyReasons: insufficiencyReasons ? JSON.stringify(insufficiencyReasons) : null,
+      researchLimitations: researchLimitations ? JSON.stringify(researchLimitations) : null,
       completedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(researchRuns.id, id));

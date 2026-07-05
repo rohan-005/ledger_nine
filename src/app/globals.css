@@ -1,13 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
-  --foreground: #ededed;
+  --background: #F7F8FA;
+  --foreground: #172033;
+  --foreground-secondary: #5F6B7A;
+  --foreground-muted: #8A94A3;
+  --border: #E5E7EB;
+  --surface: #FFFFFF;
+  --surface-hover: #F9FAFB;
+  --primary: #1E293B;
+  --primary-hover: #0F172A;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -32,8 +47,8 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Focus visible ring reset — let Tailwind handle it */
+/* Focus visible ring reset */
 :focus-visible {
-  outline: 2px solid #6b7280;
+  outline: 2px solid #3B82F6;
   outline-offset: 2px;
 }

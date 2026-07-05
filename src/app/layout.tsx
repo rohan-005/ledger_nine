@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ledger Nine — Autonomous Investment Research",
   description:
-    "Evidence-driven multi-agent investment analysis with deterministic INVEST/PASS scoring.",
+    "Evidence-driven investment analysis with deterministic scoring. Calm, professional, and research-focused.",
 };
 
 export default function RootLayout({
@@ -29,28 +29,34 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-black text-neutral-100">
-        <header className="border-b border-neutral-900 px-4 py-3 flex items-center justify-between shrink-0">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
+        <header className="bg-surface border-b border-border px-6 py-4 flex items-center justify-between shrink-0">
           <Link
             href="/"
-            className="font-mono font-bold text-sm text-neutral-100 hover:text-white tracking-wider focus:outline-none focus:underline"
+            className="font-sans font-extrabold text-lg text-foreground hover:text-primary tracking-tight focus:outline-none focus:underline"
           >
-            LEDGER NINE
+            Ledger Nine
           </Link>
-          <nav aria-label="Primary navigation">
+          <nav aria-label="Primary navigation" className="flex items-center gap-6">
+            <Link
+              href="/"
+              className="text-sm font-medium text-foreground-secondary hover:text-foreground transition-colors focus:outline-none focus:underline"
+            >
+              How it works
+            </Link>
             <Link
               href="/research/new"
-              className="text-sm text-neutral-400 hover:text-neutral-100 transition-colors focus:outline-none focus:underline"
+              className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              New Research
+              Research a Company
             </Link>
           </nav>
         </header>
 
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 flex flex-col">{children}</main>
 
-        <footer className="border-t border-neutral-900 px-4 py-3 text-xs text-neutral-700 shrink-0">
-          Ledger Nine — Investment decisions are deterministic. Research is advisory only.
+        <footer className="bg-surface border-t border-border px-6 py-4 text-xs text-foreground-muted shrink-0 text-center">
+          © {new Date().getFullYear()} Ledger Nine. All investment decisions are deterministic. Research analysis is for educational purposes only.
         </footer>
       </body>
     </html>

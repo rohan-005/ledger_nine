@@ -70,6 +70,14 @@ export class ResearchNotFoundError extends AppError {
   }
 }
 
+export class SkippedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SkippedError";
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 export function handleApiError(error: unknown) {
   if (error instanceof AppError) {
     return {

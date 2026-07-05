@@ -6,6 +6,8 @@ import { llmRouter } from "@/src/core/llm/llm-router";
 import { evidenceRepository } from "@/src/db/repositories/evidence.repository";
 import { generateId } from "@/src/lib/ids";
 import { logger } from "@/src/lib/logger";
+import { AssetIdentity } from "@/src/lib/research/asset-identity";
+import { SkippedError } from "@/src/lib/errors";
 
 const EVIDENCE_SCHEMA = {
   type: "OBJECT",
@@ -29,10 +31,24 @@ const EVIDENCE_SCHEMA = {
   required: ["evidence"],
 };
 
-export async function runSecAgent(researchId: string, ticker: string, providedCik?: string) {
+export async function runSecAgent(researchId: string, ticker: string, providedCik?: string, identity?: AssetIdentity) {
   return runAgent(researchId, "sec", async (agentRunId) => {
+    // SEC filings only exist for US issuers
+    const isUS = identity
+      ? (identity.country === "US" || identity.country === "United States" ||
+         identity.exchange?.toUpperCase().includes("NASDAQ") ||
+         identity.exchange?.toUpperCase().includes("NEW YORK STOCK EXCHANGE") ||
+         identity.exchange?.toUpperCase().includes("NYSE") ||
+         identity.exchange?.toUpperCase().includes("AMEX"))
+      : true;
+
+    let cik = providedCik || identity?.cik;
+
+    if (!isUS && !cik) {
+      throw new SkippedError("SEC filings research is not applicable for non-US assets");
+    }
+
     logger.info("SEC Agent: Resolving CIK", { ticker, providedCik });
-    let cik = providedCik;
 
     if (!cik) {
       try {

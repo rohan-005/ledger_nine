@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ResearchSummary,
@@ -18,12 +18,14 @@ import {
   getResearchAgents,
   getResearchContradictions,
 } from "@/src/lib/api/research";
+import VerdictCard from "@/src/components/research/verdict-card";
+import InvestmentCaseOverview from "@/src/components/research/investment-case-overview";
 import ScoreOverview from "@/src/components/research/score-overview";
 import CommitteeReport from "@/src/components/research/committee-report";
 import EvidenceExplorer from "@/src/components/research/evidence-explorer";
 import ContradictionList from "@/src/components/research/contradiction-list";
 import AgentRunsPanel from "@/src/components/research/agent-runs";
-import ResearchStatusPanel from "@/src/components/research/research-status";
+import ResearchStatusPanel from "./research-status";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,58 +45,58 @@ function nodeLabel(node: string | null): string {
 }
 
 const SECTIONS = [
-  { id: "overview", label: "Overview" },
-  { id: "scores", label: "Scores" },
-  { id: "report", label: "Committee Report" },
-  { id: "evidence", label: "Evidence" },
-  { id: "contradictions", label: "Contradictions" },
-  { id: "agents", label: "Agent Runs" },
+  { id: "overview", label: "Overview Verdict" },
+  { id: "scores", label: "Analytical Scores" },
+  { id: "report", label: "Thesis Narrative" },
+  { id: "evidence", label: "Sources & Evidence" },
+  { id: "contradictions", label: "Contradiction Audit" },
+  { id: "agents", label: "Research Team Logs" },
 ];
 
-// ─── Result header ────────────────────────────────────────────────────────────
+// ─── Redesigned Light Header Hero ──────────────────────────────────────────────
 
 function ResearchHeader({ summary }: { summary: ResearchSummary }) {
-  const { run, score } = summary;
-  const finalScore = score ? parseScore(score.finalScore) : null;
-  const decision: DecisionType | null = score?.decision ?? null;
+  const { run } = summary;
 
   return (
-    <div id="overview" className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-4">
-      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-neutral-400">
-        <span>Horizon: <span className="text-neutral-200 font-medium">{run.investmentHorizon}</span></span>
-        <span>Risk: <span className="text-neutral-200 font-medium capitalize">{run.riskTolerance}</span></span>
-        <span>Status: <span className="text-neutral-200 font-medium uppercase">{run.status}</span></span>
+    <div className="bg-white border border-border rounded-2xl p-6 md:p-8 space-y-4 shadow-xs">
+      <div className="flex flex-wrap gap-3 text-xs font-bold text-foreground-secondary items-center">
+        <span className="bg-background border border-border px-3 py-1 rounded-lg">
+          Horizon: <span className="text-foreground">{run.investmentHorizon}</span>
+        </span>
+        <span className="bg-background border border-border px-3 py-1 rounded-lg capitalize">
+          Risk: <span className="text-foreground">{run.riskTolerance}</span>
+        </span>
+        <span className="bg-background border border-border px-3 py-1 rounded-lg uppercase">
+          Status: <span className="text-foreground">{run.status}</span>
+        </span>
         {run.completedAt && (
-          <span>Completed: <span className="text-neutral-200 font-medium">{new Date(run.completedAt).toLocaleString()}</span></span>
+          <span className="text-foreground-muted font-normal ml-auto">
+            Run Completed: {new Date(run.completedAt).toLocaleString()}
+          </span>
         )}
       </div>
 
-      <div className="flex flex-wrap items-end gap-6">
+      <div className="border-t border-border/60 pt-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <p className="text-xs text-neutral-500 uppercase tracking-widest mb-0.5">Ticker</p>
-          <h1 className="text-5xl font-bold font-mono text-neutral-100 leading-none">{run.ticker}</h1>
+          <span className="text-[10px] font-bold text-foreground-muted uppercase tracking-widest">
+            Investigated Asset
+          </span>
+          <h1 className="text-4xl sm:text-5xl font-black font-mono text-foreground leading-none tracking-tight">
+            {run.ticker}
+          </h1>
           {run.companyName && (
-            <p className="text-neutral-400 text-base mt-1">{run.companyName}</p>
+            <p className="text-foreground-secondary text-lg mt-1 font-semibold">
+              {run.companyName}
+            </p>
           )}
         </div>
-
-        {decision !== null && finalScore !== null && (
-          <div className="ml-auto text-right">
-            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-0.5">Deterministic Decision</p>
-            <p className={`text-4xl font-black tracking-tight ${decision === "INVEST" ? "text-green-400" : "text-red-400"}`}>
-              {decision}
-            </p>
-            <p className="text-2xl font-bold text-neutral-300 font-mono mt-0.5">
-              {finalScore.toFixed(2)} / 100
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main client component ─────────────────────────────────────────────────────
 
 export default function ResearchPageClient({ id }: { id: string }) {
   const [summary, setSummary] = useState<ResearchSummary | null>(null);
@@ -105,7 +107,6 @@ export default function ResearchPageClient({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pollTimedOut, setPollTimedOut] = useState(false);
 
-  // All polling state lives in refs to avoid stale closure issues
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const pollStartRef = useRef(0);
@@ -131,7 +132,7 @@ export default function ResearchPageClient({ id }: { id: string }) {
       setAgents(agRes.agentRuns);
       setContradictions(ctRes.contradictions);
     } catch {
-      // non-fatal
+      // non-fatal detail fetch failures
     }
     if (!mountedRef.current) return;
     setSummary(currentSummary);
@@ -159,7 +160,7 @@ export default function ResearchPageClient({ id }: { id: string }) {
       try {
         statusData = await getResearchStatus(id);
       } catch {
-        // temporary failure — keep polling
+        // Keep polling on transient API errors
       }
 
       if (!isPollingRef.current || !mountedRef.current) return;
@@ -235,23 +236,21 @@ export default function ResearchPageClient({ id }: { id: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   if (loading && !summary) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-neutral-400">
-        <div className="w-6 h-6 border-2 border-neutral-500 border-t-white rounded-full animate-spin" />
-        <p className="text-sm">Loading research run…</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-foreground-secondary">
+        <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
+        <p className="text-sm font-medium">Loading investment research summary…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-        <p className="text-red-400 font-semibold">Unable to load research</p>
-        <p className="text-sm text-neutral-500 max-w-md text-center">{error}</p>
-        <Link href="/research/new" className="text-sm text-blue-400 underline mt-2">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 px-4">
+        <p className="text-red-600 font-bold text-lg">Unable to load research</p>
+        <p className="text-sm text-foreground-secondary max-w-md text-center">{error}</p>
+        <Link href="/research/new" className="text-sm text-blue-600 font-semibold underline mt-2">
           Start a new research run →
         </Link>
       </div>
@@ -260,15 +259,15 @@ export default function ResearchPageClient({ id }: { id: string }) {
 
   if (!summary) return null;
 
-  const { run } = summary;
+  const { run, score } = summary;
   const isActive = run.status === "queued" || run.status === "running";
 
   if (isActive || run.status === "failed") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4">
         {pollTimedOut && (
-          <div className="bg-amber-950/30 border border-amber-800 text-amber-200 text-sm rounded p-3 mb-2 max-w-lg text-center">
-            Research is taking longer than expected. The backend may still be running — try refreshing in a minute.
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl p-3 mb-2 max-w-lg text-center font-medium leading-relaxed shadow-xs">
+            ⚠️ Research is taking longer than expected. The pipeline continues executing in the background. Please wait or refresh the page.
           </div>
         )}
         <ResearchStatusPanel
@@ -278,27 +277,130 @@ export default function ResearchPageClient({ id }: { id: string }) {
           ticker={run.ticker}
         />
         {isActive && (
-          <p className="text-xs text-neutral-600">
-            {nodeLabel(run.currentNode)} · Polling every 2.5 s…
+          <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider">
+            Current stage: {nodeLabel(run.currentNode)} · polling pipeline status…
           </p>
         )}
       </div>
     );
   }
 
-  // ── Completed dashboard ──────────────────────────────────────────────────
+  const showDetailedResults =
+    run.outcome === "sufficient" ||
+    run.outcome === "synthesis_degraded" ||
+    !run.outcome;
+
+  const finalScore = score ? parseScore(score.finalScore) : 0;
+  const confidence = score ? parseScore(score.evidenceQuality) : 0;
+  const decision: DecisionType = score?.decision ?? "PASS";
 
   const evidenceMap = new Map((evidence ?? []).map((e) => [e.id, e]));
 
+  // Build warning banner based on outcome
+  let warningBanner = null;
+  if (run.outcome === "asset_unresolved") {
+    warningBanner = (
+      <div className="bg-red-50 border border-red-200 text-red-900 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl select-none">⚠️</span>
+          <h2 className="text-lg font-bold">Asset Unresolved</h2>
+        </div>
+        <p className="text-sm text-red-800 leading-relaxed">
+          The research pipeline could not verify the company identifier or ticker symbol <strong>{run.ticker}</strong>. Please check that the ticker symbol is correct and active.
+        </p>
+        {run.researchLimitations && run.researchLimitations.length > 0 && (
+          <div className="border-t border-red-200 pt-3 space-y-2">
+            <p className="text-xs font-bold text-red-900 uppercase tracking-wider">Research Limitations</p>
+            <ul className="text-xs text-red-800 space-y-1 list-disc list-inside">
+              {run.researchLimitations.map((limit: string, idx: number) => (
+                <li key={idx}>{limit}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  } else if (run.outcome === "insufficient_evidence") {
+    warningBanner = (
+      <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl select-none">⚠️</span>
+          <h2 className="text-lg font-bold">Research Insufficient</h2>
+        </div>
+        <p className="text-sm text-amber-800 leading-relaxed">
+          We were unable to collect sufficient factual evidence to calculate a rating score or produce an investment thesis for <strong>{run.ticker}</strong>.
+        </p>
+        {run.insufficiencyReasons && run.insufficiencyReasons.length > 0 && (
+          <div className="border-t border-amber-200 pt-3 space-y-2">
+            <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Identified Insufficiency Factors</p>
+            <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
+              {run.insufficiencyReasons.map((reason: string, idx: number) => {
+                if (reason === "NO_EVIDENCE") return <li key={idx}>No evidence was gathered from any source.</li>;
+                if (reason === "NO_FINANCIAL_EVIDENCE") return <li key={idx}>Missing fundamental financial or financial statements data.</li>;
+                if (reason === "INSUFFICIENT_CATEGORY_COVERAGE") return <li key={idx}>Insufficient coverage across different analysis categories.</li>;
+                if (reason === "CRITICAL_AGENT_FAILURES") return <li key={idx}>A critical agent failed during execution.</li>;
+                return <li key={idx}>{reason}</li>;
+              })}
+            </ul>
+          </div>
+        )}
+        {run.researchLimitations && run.researchLimitations.length > 0 && (
+          <div className="border-t border-amber-200 pt-3 space-y-2">
+            <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Research Limitations</p>
+            <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
+              {run.researchLimitations.map((limit: string, idx: number) => (
+                <li key={idx}>{limit}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  } else if (run.outcome === "provider_failure" || run.outcome === "partial") {
+    warningBanner = (
+      <div className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl select-none">⚠️</span>
+          <h2 className="text-lg font-bold">Research Interrupted</h2>
+        </div>
+        <p className="text-sm text-rose-800 leading-relaxed">
+          A critical error or service disruption with external data providers occurred. This is not a problem with the ticker, but rather a transient provider API issue.
+        </p>
+        {run.researchLimitations && run.researchLimitations.length > 0 && (
+          <div className="border-t border-rose-200 pt-3 space-y-2">
+            <p className="text-xs font-bold text-rose-900 uppercase tracking-wider">Research Limitations</p>
+            <ul className="text-xs text-rose-800 space-y-1 list-disc list-inside">
+              {run.researchLimitations.map((limit: string, idx: number) => (
+                <li key={idx}>{limit}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Filter sections dynamically
+  const activeSections = SECTIONS.filter((s) => {
+    if (!showDetailedResults) {
+      return s.id === "evidence" || s.id === "contradictions" || s.id === "agents";
+    }
+    return true;
+  });
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      <nav aria-label="Page sections" className="sticky top-0 z-10 bg-black/80 backdrop-blur border-b border-neutral-800 -mx-4 px-4 py-2">
-        <div className="flex gap-4 overflow-x-auto scrollbar-hide">
-          {SECTIONS.map((s) => (
+      {/* Sticky Tab Navigation Bar */}
+      <nav
+        aria-label="Research sections"
+        className="sticky top-0 z-10 bg-white/85 border-b border-border backdrop-blur-md -mx-4 px-4 py-3 flex gap-4 overflow-x-auto scrollbar-hide shadow-2xs"
+      >
+        <div className="flex gap-4 overflow-x-auto scrollbar-hide w-full max-w-5xl mx-auto">
+          {activeSections.map((s) => (
             <a
               key={s.id}
               href={`#${s.id}`}
-              className="whitespace-nowrap text-sm text-neutral-400 hover:text-neutral-100 transition-colors focus:outline-none focus:underline"
+              className="whitespace-nowrap text-xs font-bold text-foreground-secondary hover:text-primary transition-colors focus:outline-none focus:underline"
             >
               {s.label}
             </a>
@@ -306,17 +408,56 @@ export default function ResearchPageClient({ id }: { id: string }) {
         </div>
       </nav>
 
+      {/* Hero Info Header */}
       <ResearchHeader summary={summary} />
-      {summary.score && <ScoreOverview score={summary.score} />}
-      {summary.report && <CommitteeReport report={summary.report} />}
-      {evidence !== null
-        ? <EvidenceExplorer evidence={evidence} />
-        : <div className="text-sm text-neutral-500">Loading evidence…</div>
-      }
-      {contradictions !== null && (
-        <ContradictionList contradictions={contradictions} evidenceMap={evidenceMap} />
+
+      {/* Warning Banner */}
+      {warningBanner}
+
+      {/* Hero Overview Verdict section */}
+      {showDetailedResults && (
+        <>
+          <div id="overview" className="scroll-mt-20 space-y-6">
+            <VerdictCard
+              decision={decision}
+              finalScore={finalScore}
+              evidenceQuality={confidence}
+            />
+            {score && <InvestmentCaseOverview score={score} />}
+          </div>
+
+          {/* Analytical Scores Section */}
+          <div id="scores" className="scroll-mt-20">
+            {score && <ScoreOverview score={score} />}
+          </div>
+
+          {/* Investment Narrative / Committee Report */}
+          <div id="report" className="scroll-mt-20">
+            {summary.report && <CommitteeReport report={summary.report} />}
+          </div>
+        </>
       )}
-      {agents !== null && <AgentRunsPanel agentRuns={agents} />}
+
+      {/* Evidence Explorer */}
+      {evidence && evidence.length > 0 && (
+        <div id="evidence" className="scroll-mt-20">
+          <EvidenceExplorer evidence={evidence} />
+        </div>
+      )}
+
+      {/* Contradiction Reconciliation Audit */}
+      {contradictions && contradictions.length > 0 && (
+        <div id="contradictions" className="scroll-mt-20">
+          <ContradictionList contradictions={contradictions} evidenceMap={evidenceMap} />
+        </div>
+      )}
+
+      {/* Research Team Agent Runs */}
+      {agents && agents.length > 0 && (
+        <div id="agents" className="scroll-mt-20">
+          <AgentRunsPanel agentRuns={agents} />
+        </div>
+      )}
     </div>
   );
 }

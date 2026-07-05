@@ -40,6 +40,16 @@ export const agentRunRepository = {
     }).where(eq(agentRuns.id, id));
   },
 
+  async skipAgentRun(id: string, reason: string) {
+    const db = getDb();
+    await db.update(agentRuns).set({
+      status: "skipped",
+      fallbackReason: reason,
+      errorMessage: reason,
+      completedAt: new Date(),
+    }).where(eq(agentRuns.id, id));
+  },
+
   async getAgentRunsByResearchId(researchId: string) {
     const db = getDb();
     return db.select().from(agentRuns).where(eq(agentRuns.researchId, researchId));

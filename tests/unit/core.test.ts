@@ -157,7 +157,8 @@ describe("Scoring Engine Tests", () => {
     const list = [baseSecFinancial, baseSecBusiness, baseSecValuation, baseTavilyNews, baseRisk];
     const scoresNoPenalty = calculateScores(list, []);
     const scoresWithPenalty = calculateScores(list, [{ severity: "high" }]);
-    expect(scoresWithPenalty.final).toBe(scoresNoPenalty.final - 15);
+    expect(scoresNoPenalty.final).not.toBeNull();
+    expect(scoresWithPenalty.final).toBe(scoresNoPenalty.final! - 15);
   });
 
   it("should trigger PASS if evidence quality is critically low", () => {
@@ -174,9 +175,11 @@ describe("Scoring Engine Tests", () => {
 
   it("should apply missing financial primary data penalty", () => {
     // Only tavily news present (no financial primary SEC/FMP)
-    const list = [baseTavilyNews];
+    const lowNews = { ...baseTavilyNews, normalizedValue: 70 };
+    const list = [lowNews];
     const scores = calculateScores(list, []);
-    // Guardrail penalty of -10 is applied
+    // Guardrail penalty of -10 is applied: base 71 - 10 = 61
+    expect(scores.final).toBe(61);
     expect(scores.decision).toBe("PASS");
   });
 });

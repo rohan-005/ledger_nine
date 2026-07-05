@@ -15,6 +15,13 @@ export async function GET(
       return NextResponse.json({ error: "Research run not found" }, { status: 404 });
     }
 
+    // Parse stringified JSON fields in run
+    const formattedRun = {
+      ...run,
+      insufficiencyReasons: run.insufficiencyReasons ? JSON.parse(run.insufficiencyReasons) : [],
+      researchLimitations: run.researchLimitations ? JSON.parse(run.researchLimitations) : [],
+    };
+
     const score = await scoreRepository.getScoreByResearchId(id);
     const report = await reportRepository.getReportByResearchId(id);
 
@@ -47,7 +54,7 @@ export async function GET(
     }
 
     return NextResponse.json({
-      run,
+      run: formattedRun,
       score: formattedScore,
       report: formattedReport,
     });

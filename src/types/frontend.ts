@@ -1,12 +1,13 @@
 // ─── Primitives ──────────────────────────────────────────────────────────────
 
 export type ResearchStatus = "queued" | "running" | "completed" | "failed";
+export type ResearchOutcome = "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded";
 export type RiskTolerance = "low" | "moderate" | "high";
 export type DecisionType = "INVEST" | "PASS";
 export type EvidenceCategory = "business" | "financial" | "valuation" | "news" | "risk";
 export type EvidenceSourceType = "sec" | "fmp" | "tavily" | "alpha_vantage" | "llm_inference";
 export type ContradictionSeverity = "low" | "medium" | "high";
-export type AgentRunStatus = "started" | "completed" | "failed";
+export type AgentRunStatus = "started" | "completed" | "failed" | "skipped";
 
 // ─── API Envelopes ────────────────────────────────────────────────────────────
 
@@ -26,6 +27,9 @@ export interface ResearchRun {
   status: ResearchStatus;
   currentNode: string | null;
   errorMessage: string | null;
+  outcome: ResearchOutcome | null;
+  insufficiencyReasons: string[] | null;
+  researchLimitations: string[] | null;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -40,6 +44,7 @@ export interface ResearchStatusResponse {
   status: ResearchStatus;
   currentNode: string | null;
   errorMessage: string | null;
+  outcome: ResearchOutcome | null;
   startedAt: string | null;
   completedAt: string | null;
 }
@@ -48,7 +53,7 @@ export interface ResearchStatusResponse {
 
 // Matches ScoreCategoryBreakdown in src/core/scoring/score.types.ts
 export interface ScoreCategoryBreakdown {
-  score: number;
+  score: number | null;
   contributingFactors: string[];
   positiveImpacts: string[];
   negativeImpacts: string[];
@@ -71,22 +76,23 @@ export interface ScoreBreakdown {
 export interface ResearchScores {
   id: string;
   researchId: string;
-  business: string;
-  financial: string;
-  valuation: string;
-  news: string;
-  risk: string;
-  evidenceQuality: string;
-  contradictionPenalty: string;
-  finalScore: string;
-  decision: DecisionType;
+  business: string | null;
+  financial: string | null;
+  valuation: string | null;
+  news: string | null;
+  risk: string | null;
+  evidenceQuality: string | null;
+  contradictionPenalty: string | null;
+  finalScore: string | null;
+  decision: DecisionType | null;
   scoreBreakdown: ScoreBreakdown | null;
   createdAt: string;
 }
 
 // Helper to safely parse a score string to a number
-export function parseScore(v: string | null | undefined): number {
+export function parseScore(v: string | number | null | undefined): number {
   if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return v;
   const n = parseFloat(v);
   return isNaN(n) ? 0 : n;
 }
