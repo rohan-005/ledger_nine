@@ -235,5 +235,59 @@ describe("Consensus Engine & Research Coordinator Tests", () => {
         "completed"
       );
     });
+
+    it("should persist outcome=insufficient_evidence when agents fail but gate executes", async () => {
+      // Orchestrator returns empty evidence (agents all failed)
+      const orchestratorMod = await import("@/src/core/agents/orchestrator");
+      vi.mocked(orchestratorMod.orchestrateSpecialists).mockResolvedValueOnce([]);
+
+      // agentRuns reflect provider failures
+      const agentRunMod = await import("@/src/db/repositories/agent-run.repository");
+      vi.mocked(agentRunMod.agentRunRepository.getAgentRunsByResearchId).mockResolvedValueOnce([
+        { agentId: "financial", status: "failed", errorMessage: "rate limit" } as any,
+        { agentId: "sec", status: "failed", errorMessage: "rate limit" } as any,
+        { agentId: "macro", status: "completed", errorMessage: null } as any,
+      ] as any[]);
+
+      vi.mocked(llmRouter.generateText).mockResolvedValue({
+        text: JSON.stringify({ contradictions: [] }),
+        latencyMs: 10,
+        model: "mock-model",
+        provider: "mock-provider",
+      });
+
+      await researchCoordinator.executeResearch("run_abc", "AAPL", "3-5 years", "moderate");
+
+      const calls = vi.mocked(researchRepository.markCompleted).mock.calls;
+      const lastCall = calls[calls.length - 1];
+
+      // Outcome must be insufficient_evidence — NEVER interrupted
+      expect(lastCall[2]).toBe("insufficient_evidence");
+      // Lifecycle status must be completed (pipeline ran to terminal state normally)
+      expect(lastCall[5]).toBe("completed");
+      // Synthesis must NOT have been triggered
+      expect(researchRepository.updateCurrentNode).not.toHaveBeenCalledWith("run_abc", "committee");
+    });
+
+    it("should persist null scores when gate is insufficient", async () => {
+      const orchestratorMod = await import("@/src/core/agents/orchestrator");
+      vi.mocked(orchestratorMod.orchestrateSpecialists).mockResolvedValueOnce([]);
+
+      vi.mocked(llmRouter.generateText).mockResolvedValue({
+        text: JSON.stringify({ contradictions: [] }),
+        latencyMs: 10,
+        model: "mock-model",
+        provider: "mock-provider",
+      });
+
+      await researchCoordinator.executeResearch("run_abc", "AAPL", "3-5 years", "moderate");
+
+      expect(scoreRepository.upsertScore).toHaveBeenCalled();
+      const scoreCalls = vi.mocked(scoreRepository.upsertScore).mock.calls;
+      const scoreArgs = scoreCalls[scoreCalls.length - 1][0];
+      // All scored numeric values must be null when gate blocks synthesis
+      expect(scoreArgs.finalScore).toBeNull();
+      expect(scoreArgs.decision).toBeNull();
+    });
   });
 });
