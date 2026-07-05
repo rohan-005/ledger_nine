@@ -150,12 +150,26 @@ export const researchCoordinator = {
       });
 
       // 6. Synthesize Research Report or Degradation Fallback
-      let finalOutcome: "sufficient" | "insufficient_evidence" | "asset_unresolved" | "provider_failure" | "partial" | "synthesis_degraded" | "interrupted" = sufficiencyResult.outcome;
-      
+      //
+      // finalOutcome starts as the AUTHORITATIVE gate result from checkSufficiency.
+      // Nothing after this point may overwrite it with "interrupted" based solely
+      // on agent failures — those are already captured inside the gate decision.
+      // "interrupted" is reserved exclusively for the outer catch block (fatal abort
+      // before or during orchestration, before the gate executes).
+      let finalOutcome:
+        | "sufficient"
+        | "insufficient_evidence"
+        | "provider_failure"
+        | "asset_unresolved"
+        | "synthesis_degraded"
+        | "interrupted" = sufficiencyResult.outcome === "provider_failure"
+        ? "insufficient_evidence"   // provider_failure is a gate-level insufficiency; persist as insufficient_evidence
+        : sufficiencyResult.outcome as Exclude<typeof sufficiencyResult.outcome, "provider_failure">;
+
       if (sufficiencyResult.sufficient) {
         await researchRepository.updateCurrentNode(researchId, "committee");
         const synthesisResult = await synthesizeResearchReport(researchId, ticker, evidenceList, scores);
-        
+
         if (!synthesisResult.success) {
           finalOutcome = "synthesis_degraded";
           sufficiencyResult.limitations.push("LLM Report Synthesis failed due to provider limits.");
@@ -165,7 +179,7 @@ export const researchCoordinator = {
           researchId,
           reasons: sufficiencyResult.reasons,
         });
-        
+
         // Write empty report row so frontend DB query doesn't miss the relation
         await reportRepository.upsertReport({
           id: generateId("rep"),
@@ -179,12 +193,13 @@ export const researchCoordinator = {
         });
       }
 
-      // 7. Complete/Interrupt Run
-      let finalStatus: "completed" | "interrupted" | "failed" = "completed";
-      if ((finalOutcome as string) === "provider_failure" || (finalOutcome as string) === "partial" || (finalOutcome as string) === "interrupted") {
-        finalStatus = "interrupted";
-        finalOutcome = "interrupted";
-      }
+      // 7. Resolve terminal lifecycle status.
+      //
+      // The run reached this point by executing normally through all pipeline stages.
+      // Regardless of the research outcome, execution itself completed — so
+      // status = "completed".  Only a thrown exception (caught below) produces
+      // status = "failed" / "interrupted".
+      const finalStatus: "completed" | "interrupted" | "failed" = "completed";
 
       await researchRepository.updateCurrentNode(researchId, "completed");
       await researchRepository.markCompleted(
@@ -196,7 +211,12 @@ export const researchCoordinator = {
         finalStatus
       );
 
-      logger.info("Coordinator: Pipeline successfully finished execution", { researchId, ticker });
+      logger.info("Coordinator: Pipeline reached terminal state", {
+        researchId,
+        ticker,
+        outcome: finalOutcome,
+        sufficiencyPassed: sufficiencyResult.sufficient,
+      });
     } catch (error: any) {
       logger.error("Coordinator: Pipeline execution failed", { researchId, error });
       const userSafeErrorMessage = sanitizeErrorMessage(error.message || String(error));
