@@ -38,18 +38,28 @@ export class LLMRouter {
 
     const maxPrimaryAttempts = 2;
     let attempt = 1;
+    let lastPrimaryError: unknown = null;
 
     while (attempt <= maxPrimaryAttempts) {
       try {
         logger.info(`LLM Router: Attempting primary specialist (Gemini)`, { attempt });
         return await this.primaryProvider.generateText(prompt, restOptions);
       } catch (error: unknown) {
+        lastPrimaryError = error;
         logger.warn(`LLM Router: Primary specialist failed on attempt ${attempt}`, { error });
-        if (attempt === maxPrimaryAttempts) {
+
+        // If the error is classified as non-retryable (e.g. hard rate-limit),
+        // skip further primary attempts and fall through to the fallback immediately.
+        const isNonRetryable =
+          error instanceof Error &&
+          "retryable" in error &&
+          (error as { retryable: boolean }).retryable === false;
+
+        if (isNonRetryable || attempt === maxPrimaryAttempts) {
           break;
         }
         attempt++;
-        // Quick backoff before retrying primary
+        // Short backoff before retrying primary
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }

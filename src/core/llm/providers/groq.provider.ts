@@ -60,12 +60,36 @@ export class GroqProvider implements LLMProvider {
       };
     } catch (error: unknown) {
       if (error instanceof IntegrationError) throw error;
+
+      // Extract a sanitized message — never expose raw Groq API bodies which
+      // may contain org IDs, token limits, billing URLs, etc.
+      let safeMessage = "Unknown Groq API error";
+      if (error instanceof Error) {
+        const raw = error.message || "";
+        // Check for rate-limit / 429 condition
+        if (
+          raw.includes("429") ||
+          raw.toLowerCase().includes("rate limit") ||
+          raw.toLowerCase().includes("rate_limit") ||
+          (error as any).status === 429
+        ) {
+          safeMessage = "Rate limit reached. Provider quota exceeded.";
+        } else if (raw.includes("401") || raw.toLowerCase().includes("unauthorized")) {
+          safeMessage = "Provider authentication failed.";
+        } else if (raw.includes("503") || raw.toLowerCase().includes("unavailable")) {
+          safeMessage = "Provider temporarily unavailable.";
+        } else {
+          // General truncation — do not expose full body
+          safeMessage = raw.length > 120 ? raw.slice(0, 120) + "…" : raw;
+        }
+      }
+
       throw new IntegrationError(
         "Groq generate content failed",
         "groq",
-        error instanceof Error ? error.message : "Unknown Groq API error",
+        safeMessage,
         false,
-        undefined,
+        { status: (error as any)?.status ?? undefined },
         error
       );
     }
