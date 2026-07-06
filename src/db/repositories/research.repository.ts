@@ -65,5 +65,16 @@ export const researchRepository = {
       completedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(researchRuns.id, id));
+  },
+
+  async markInterrupted(id: string, errorMessage: string) {
+    const db = getDb();
+    await db.update(researchRuns).set({
+      status: "interrupted",
+      outcome: "interrupted",
+      errorMessage,
+      completedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(researchRuns.id, id));
   }
 };

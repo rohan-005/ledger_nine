@@ -221,9 +221,9 @@ export const researchCoordinator = {
       logger.error("Coordinator: Pipeline execution failed", { researchId, error });
       const userSafeErrorMessage = sanitizeErrorMessage(error.message || String(error));
       try {
-        await researchRepository.markFailed(researchId, userSafeErrorMessage);
+        await researchRepository.markInterrupted(researchId, userSafeErrorMessage);
       } catch (dbErr) {
-        logger.warn("Coordinator: Failed to mark run as failed in database", { dbErr });
+        logger.warn("Coordinator: Failed to mark run as interrupted in database", { dbErr });
       }
       throw error;
     }
