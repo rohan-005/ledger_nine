@@ -12,9 +12,9 @@ import { SCORING_CONFIG } from "@/src/config/scoring.config";
 import { logger } from "@/src/lib/logger";
 
 export const CONTRADICTION_PENALTY_LOW = 0;
-export const CONTRADICTION_PENALTY_MEDIUM = 2;
-export const CONTRADICTION_PENALTY_HIGH = 4;
-export const MAX_CONTRADICTION_PENALTY = 10;
+export const CONTRADICTION_PENALTY_MEDIUM = 7;
+export const CONTRADICTION_PENALTY_HIGH = 15;
+export const MAX_CONTRADICTION_PENALTY = 25;
 export const CONTRADICTION_CONFIDENCE_THRESHOLD = 0.70;
 
 // ─── Numeric helpers ────────────────────────────────────────────────────────

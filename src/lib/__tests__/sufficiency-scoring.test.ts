@@ -46,10 +46,10 @@ describe("Sufficiency Gate", () => {
     const res = checkSufficiency(evidence, agentRuns, true);
     expect(res.sufficient).toBe(false);
     expect(res.outcome).toBe("insufficient_evidence");
-    expect(res.reasons).toContain("INSUFFICIENT_CATEGORY_COVERAGE");
+    expect(res.reasons).toContain("INSUFFICIENT_COVERAGE_SCORE");
   });
 
-  it("fails sufficiency gate on missing regulatory filings (SEC) for US assets", () => {
+  it("passes sufficiency gate on missing regulatory filings (SEC) for US assets if total coverage is sufficient", () => {
     const evidence: EvidenceItem[] = [
       { id: "e1", category: "business", sourceType: "fmp" } as any,
       { id: "e2", category: "financial", sourceType: "fmp" } as any,
@@ -62,9 +62,8 @@ describe("Sufficiency Gate", () => {
       { agentId: "macro", status: "completed" } as any,
     ];
     const res = checkSufficiency(evidence, agentRuns, true);
-    expect(res.sufficient).toBe(false);
-    expect(res.outcome).toBe("insufficient_evidence");
-    expect(res.reasons).toContain("NO_REGULATORY_EVIDENCE");
+    expect(res.sufficient).toBe(true);
+    expect(res.outcome).toBe("sufficient");
   });
 
   it("fails sufficiency gate on insufficient specialist coverage (fewer than 2 successful agents)", () => {

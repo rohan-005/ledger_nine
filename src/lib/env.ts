@@ -55,3 +55,11 @@ export function getDatabaseUrl(): string {
   }
   return key;
 }
+
+export function getFinnhubApiKey(): string {
+  return process.env.FINNHUB_API_KEY || "";
+}
+
+export function getNewsApiKey(): string {
+  return process.env.NEWS_API_KEY || "";
+}

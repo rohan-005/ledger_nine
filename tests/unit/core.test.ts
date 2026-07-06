@@ -155,8 +155,23 @@ describe("Scoring Engine Tests", () => {
   });
 
   it("should apply contradiction penalty", () => {
-    const scoresNoPenalty = calculateScores(fullEvidence, []);
-    const scoresWithPenalty = calculateScores(fullEvidence, [{ severity: "high" }]);
+    const list = [
+      ...fullEvidence,
+      {
+        id: "ev_f2",
+        researchId: "run_1",
+        claim: "Revenue fell by 10%",
+        category: "financial",
+        sourceType: "sec",
+        normalizedValue: 20,
+        confidence: 1.0,
+        sourceQuality: 1.0,
+        agentId: "financial_agent",
+        createdAt: new Date().toISOString(),
+      }
+    ];
+    const scoresNoPenalty = calculateScores(list, []);
+    const scoresWithPenalty = calculateScores(list, [{ severity: "high", evidenceIdA: "ev_f1", evidenceIdB: "ev_f2" }]);
     expect(scoresNoPenalty.final).not.toBeNull();
     expect(scoresWithPenalty.final).toBe(scoresNoPenalty.final! - 15);
   });

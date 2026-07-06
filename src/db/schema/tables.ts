@@ -113,10 +113,16 @@ export const researchScores = pgTable(
     valuation: numeric("valuation"),
     news: numeric("news"),
     risk: numeric("risk"),
+    financialQuality: numeric("financial_quality"),
+    growthQuality: numeric("growth_quality"),
+    businessQuality: numeric("business_quality"),
+    competitivePosition: numeric("competitive_position"),
+    managementGovernance: numeric("management_governance"),
+    earningsQuality: numeric("earnings_quality"),
     evidenceQuality: numeric("evidence_quality"),
     contradictionPenalty: numeric("contradiction_penalty"),
     finalScore: numeric("final_score"),
-    decision: varchar("decision", { length: 32 }), // "INVEST" | "PASS"
+    decision: varchar("decision", { length: 32 }), // "INVEST" | "PASS" | "WATCH"
     scoreBreakdown: text("score_breakdown"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   }

@@ -13,23 +13,23 @@ export const SCORING_CONFIG = {
   },
   penalties: {
     contradiction: {
-      high: 4,
-      medium: 2,
+      high: 15,
+      medium: 7,
       low: 0,
     },
     /**
      * Global ceiling on the total contradiction penalty applied to any run.
      *
-     * Rationale: The score scale is 0..100. A ceiling of 10 means that
+     * Rationale: The score scale is 0..100. A ceiling of 25 means that
      * even if the LLM contradiction detector flags many pairs as "high"
-     * severity, the total deduction is bounded at 10% of the scale.
+     * severity, the total deduction is bounded at 25% of the scale.
      * This prevents compound or hallucinated contradictions from
      * eliminating a valid partial evidence signal entirely.
      *
      * This value is derived from scale semantics only — it is NOT chosen
      * to improve or repair any specific company's score.
      */
-    maxContradictionPenalty: 10,
+    maxContradictionPenalty: 25,
   },
   sourceQuality: {
     sec: 1.00,

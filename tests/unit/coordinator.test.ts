@@ -5,21 +5,93 @@ import { researchRepository } from "@/src/db/repositories/research.repository";
 import { scoreRepository } from "@/src/db/repositories/score.repository";
 import { contradictionRepository } from "@/src/db/repositories/contradiction.repository";
 import { reportRepository } from "@/src/db/repositories/report.repository";
+import { agentRunRepository } from "@/src/db/repositories/agent-run.repository";
 import { fmpClient } from "@/src/integrations/fmp/fmp.client";
+import { newsapiClient } from "@/src/lib/services/newsapi";
+import { tavilyClient } from "@/src/integrations/tavily/tavily.client";
 import { llmRouter } from "@/src/core/llm/llm-router";
 import { Evidence } from "@/src/core/evidence/evidence.types";
 
 // Mock the integrations
 vi.mock("@/src/integrations/fmp/fmp.client", () => ({
   fmpClient: {
-    getCompanyProfile: vi.fn().mockResolvedValue({ symbol: "AAPL", companyName: "Apple Inc." }),
+    getCompanyProfile: vi.fn().mockResolvedValue({ symbol: "AAPL", companyName: "Apple Inc.", exchange: "NASDAQ", country: "US" }),
+    getIncomeStatements: vi.fn().mockResolvedValue([
+      { date: "2023-12-31", revenue: 383285000000, grossProfit: 169148000000, operatingIncome: 114301000000, netIncome: 96995000000, interestExpense: 3933000000 },
+      { date: "2022-12-31", revenue: 394328000000, grossProfit: 170782000000, operatingIncome: 119437000000, netIncome: 99803000000, interestExpense: 2931000000 },
+      { date: "2021-12-31", revenue: 365817000000, grossProfit: 152837000000, operatingIncome: 108949000000, netIncome: 94680000000, interestExpense: 2645000000 }
+    ]),
+    getBalanceSheets: vi.fn().mockResolvedValue([
+      { date: "2023-12-31", totalAssets: 352583000000, totalLiabilities: 290437000000, totalStockholdersEquity: 62146000000, totalDebt: 111088000000 },
+      { date: "2022-12-31", totalAssets: 352755000000, totalLiabilities: 302083000000, totalStockholdersEquity: 50672000000, totalDebt: 120069000000 },
+      { date: "2021-12-31", totalAssets: 351002000000, totalLiabilities: 287912000000, totalStockholdersEquity: 63090000000, totalDebt: 124719000000 }
+    ]),
+    getCashFlowStatements: vi.fn().mockResolvedValue([
+      { date: "2023-12-31", netCashProvidedByOperatingActivities: 110543000000, capitalExpenditure: 10959000000, freeCashFlow: 99584000000 },
+      { date: "2022-12-31", netCashProvidedByOperatingActivities: 122151000000, capitalExpenditure: 10708000000, freeCashFlow: 111443000000 },
+      { date: "2021-12-31", netCashProvidedByOperatingActivities: 104038000000, capitalExpenditure: 11085000000, freeCashFlow: 92953000000 }
+    ]),
+    getQuote: vi.fn().mockResolvedValue({ price: 150.0, pe: 30.0, enterpriseValueOverEBITDA: 25.0, marketCap: 2500000000000 }),
+  },
+}));
+
+vi.mock("@/src/lib/services/finnhub", () => ({
+  finnhubClient: {
+    getCompanyProfile: vi.fn().mockResolvedValue({ name: "Apple Inc.", exchange: "NASDAQ", country: "US" }),
+    getQuote: vi.fn().mockResolvedValue({ c: 150.0 }),
+    getCompanyNews: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock("@/src/lib/services/newsapi", () => ({
+  newsapiClient: {
+    searchEverything: vi.fn().mockResolvedValue({
+      articles: [
+        { title: "Apple reports strong earnings", description: "Apple has exceeded growth expectations.", source: { name: "Reuters" } }
+      ]
+    }),
+  },
+}));
+
+vi.mock("@/src/integrations/tavily/tavily.client", () => ({
+  tavilyClient: {
+    search: vi.fn().mockResolvedValue({ results: [] }),
+  },
+}));
+
+vi.mock("@/src/lib/services/gemini", () => ({
+  geminiClient: {
+    generateText: vi.fn().mockResolvedValue({
+      text: JSON.stringify({
+        businessQualityMoat: "wide",
+        businessQualityReasoning: "Strong moat",
+        competitivePosition: "leader",
+        competitivePositionReasoning: "Leader in hardware",
+        managementGovernance: "excellent",
+        managementGovernanceReasoning: "Excellent capital allocation",
+        riskExposure: "low",
+        riskReasoning: "Low business risk",
+        thesis: "AAPL is a strong buy.",
+        bullCase: ["Moat is wide", "Services revenue growing"],
+        bearCase: ["Hardware sales slowing"],
+        keyRisks: ["Regulatory scrutiny"],
+        summary: "Overall very positive company.",
+      }),
+      latencyMs: 100,
+      model: "mock-model",
+      provider: "mock-provider",
+    }),
   },
 }));
 
 // Mock the LLM router
 vi.mock("@/src/core/llm/llm-router", () => ({
   llmRouter: {
-    generateText: vi.fn(),
+    generateText: vi.fn().mockResolvedValue({
+      text: JSON.stringify({
+        contradictions: [],
+      }),
+    }),
   },
 }));
 
@@ -39,8 +111,19 @@ vi.mock("@/src/db/repositories/agent-run.repository", () => ({
     getAgentRunsByResearchId: vi.fn().mockResolvedValue([
       { agentId: "sec", status: "completed" },
       { agentId: "financial", status: "completed" },
+      { agentId: "macro", status: "completed" },
+      { agentId: "earnings", status: "completed" },
     ]),
-    upsertAgentRun: vi.fn().mockResolvedValue({}),
+    startAgentRun: vi.fn().mockResolvedValue({}),
+    completeAgentRun: vi.fn().mockResolvedValue({}),
+    failAgentRun: vi.fn().mockResolvedValue({}),
+  },
+}));
+
+vi.mock("@/src/db/repositories/evidence.repository", () => ({
+  evidenceRepository: {
+    insertManyEvidence: vi.fn().mockResolvedValue([]),
+    insertEvidence: vi.fn().mockResolvedValue({}),
   },
 }));
 
@@ -60,45 +143,6 @@ vi.mock("@/src/db/repositories/report.repository", () => ({
   reportRepository: {
     upsertReport: vi.fn().mockImplementation((rep) => Promise.resolve(rep)),
   },
-}));
-
-// Mock the specialist orchestrator
-vi.mock("@/src/core/agents/orchestrator", () => ({
-  orchestrateSpecialists: vi.fn().mockResolvedValue([
-    {
-      id: "ev_1",
-      researchId: "run_abc",
-      claim: "Strong revenues",
-      category: "financial",
-      sourceType: "sec",
-      confidence: 1.0,
-      sourceQuality: 1.0,
-      agentId: "financial",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "ev_2",
-      researchId: "run_abc",
-      claim: "Strong moat",
-      category: "business",
-      sourceType: "fmp",
-      confidence: 1.0,
-      sourceQuality: 1.0,
-      agentId: "business",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "ev_3",
-      researchId: "run_abc",
-      claim: "Fair valuation",
-      category: "valuation",
-      sourceType: "sec",
-      confidence: 1.0,
-      sourceQuality: 1.0,
-      agentId: "valuation",
-      createdAt: new Date().toISOString(),
-    },
-  ]),
 }));
 
 describe("Consensus Engine & Research Coordinator Tests", () => {
@@ -238,13 +282,13 @@ describe("Consensus Engine & Research Coordinator Tests", () => {
     });
 
     it("should persist outcome=insufficient_evidence when agents fail but gate executes", async () => {
-      // Orchestrator returns empty evidence (agents all failed)
-      const orchestratorMod = await import("@/src/core/agents/orchestrator");
-      vi.mocked(orchestratorMod.orchestrateSpecialists).mockResolvedValueOnce([]);
+      // Mock APIs to return empty/fail
+      vi.mocked(fmpClient.getIncomeStatements).mockResolvedValueOnce([]);
+      vi.mocked(fmpClient.getBalanceSheets).mockResolvedValueOnce([]);
+      vi.mocked(fmpClient.getCashFlowStatements).mockResolvedValueOnce([]);
 
       // agentRuns reflect provider failures
-      const agentRunMod = await import("@/src/db/repositories/agent-run.repository");
-      vi.mocked(agentRunMod.agentRunRepository.getAgentRunsByResearchId).mockResolvedValueOnce([
+      vi.mocked(agentRunRepository.getAgentRunsByResearchId).mockResolvedValueOnce([
         { agentId: "financial", status: "failed", errorMessage: "rate limit" } as any,
         { agentId: "sec", status: "failed", errorMessage: "rate limit" } as any,
         { agentId: "macro", status: "completed", errorMessage: null } as any,
@@ -271,8 +315,12 @@ describe("Consensus Engine & Research Coordinator Tests", () => {
     });
 
     it("should persist null scores when gate is insufficient", async () => {
-      const orchestratorMod = await import("@/src/core/agents/orchestrator");
-      vi.mocked(orchestratorMod.orchestrateSpecialists).mockResolvedValueOnce([]);
+      // Mock APIs to return empty/fail
+      vi.mocked(fmpClient.getIncomeStatements).mockResolvedValueOnce([]);
+      vi.mocked(fmpClient.getBalanceSheets).mockResolvedValueOnce([]);
+      vi.mocked(fmpClient.getCashFlowStatements).mockResolvedValueOnce([]);
+      vi.mocked(newsapiClient.searchEverything).mockResolvedValueOnce({ articles: [] });
+      vi.mocked(tavilyClient.search).mockResolvedValueOnce({ results: [] });
 
       vi.mocked(llmRouter.generateText).mockResolvedValue({
         text: JSON.stringify({ contradictions: [] }),
