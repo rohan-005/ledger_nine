@@ -113,8 +113,8 @@ describe("Scoring Engine & Contradiction Filters", () => {
 
   it("filters out immaterial price contradictions (<2% relative difference)", () => {
     const evidenceList: any[] = [
-      { id: "e1", claim: "AAPL is trading at $185", category: "valuation", sourceType: "tavily", rawValue: "185" },
-      { id: "e2", claim: "Apple shares are $187", category: "valuation", sourceType: "tavily", rawValue: "187" },
+      { id: "e1", claim: "The stock is trading at $185", category: "valuation", sourceType: "tavily", rawValue: "185" },
+      { id: "e2", claim: "Company shares are $187", category: "valuation", sourceType: "tavily", rawValue: "187" },
     ];
     const contradictions = [
       { severity: "medium", evidenceIdA: "e1", evidenceIdB: "e2" }
@@ -125,8 +125,8 @@ describe("Scoring Engine & Contradiction Filters", () => {
 
   it("applies penalty for material price contradictions (>=2% relative difference)", () => {
     const evidenceList: any[] = [
-      { id: "e1", claim: "AAPL is trading at $100", category: "valuation", sourceType: "tavily", rawValue: "100" },
-      { id: "e2", claim: "Apple shares are $200", category: "valuation", sourceType: "tavily", rawValue: "200" },
+      { id: "e1", claim: "The stock is trading at $100", category: "valuation", sourceType: "tavily", rawValue: "100" },
+      { id: "e2", claim: "Company shares are $200", category: "valuation", sourceType: "tavily", rawValue: "200" },
     ];
     const contradictions = [
       { severity: "medium", evidenceIdA: "e1", evidenceIdB: "e2" }
@@ -137,8 +137,8 @@ describe("Scoring Engine & Contradiction Filters", () => {
 
   it("filters out temporal mismatch contradictions (short term vs long term)", () => {
     const evidenceList: any[] = [
-      { id: "e1", claim: "AAPL rose 3% today", category: "news", sourceType: "tavily", rawValue: "" },
-      { id: "e2", claim: "Apple has strong long-term trend and outlook", category: "business", sourceType: "tavily", rawValue: "" },
+      { id: "e1", claim: "The stock rose 3% today", category: "news", sourceType: "tavily", rawValue: "" },
+      { id: "e2", claim: "The company has strong long-term trend and outlook", category: "news", sourceType: "tavily", rawValue: "" },
     ];
     const contradictions = [
       { severity: "medium", evidenceIdA: "e1", evidenceIdB: "e2" }

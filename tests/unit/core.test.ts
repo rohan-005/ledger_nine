@@ -137,9 +137,10 @@ describe("Scoring Engine Tests", () => {
     createdAt: new Date().toISOString(),
   };
 
+  const fullEvidence = [baseSecFinancial, baseSecBusiness, baseSecValuation, baseTavilyNews, baseRisk];
+
   it("should recommend INVEST on high quality bullish evidence", () => {
-    const list = [baseSecFinancial, baseSecBusiness, baseSecValuation, baseTavilyNews, baseRisk];
-    const scores = calculateScores(list, []);
+    const scores = calculateScores(fullEvidence, []);
     expect(scores.decision).toBe("INVEST");
     expect(scores.final).toBeGreaterThanOrEqual(65);
   });
@@ -154,9 +155,8 @@ describe("Scoring Engine Tests", () => {
   });
 
   it("should apply contradiction penalty", () => {
-    const list = [baseSecFinancial, baseSecBusiness, baseSecValuation, baseTavilyNews, baseRisk];
-    const scoresNoPenalty = calculateScores(list, []);
-    const scoresWithPenalty = calculateScores(list, [{ severity: "high" }]);
+    const scoresNoPenalty = calculateScores(fullEvidence, []);
+    const scoresWithPenalty = calculateScores(fullEvidence, [{ severity: "high" }]);
     expect(scoresNoPenalty.final).not.toBeNull();
     expect(scoresWithPenalty.final).toBe(scoresNoPenalty.final! - 15);
   });
@@ -167,22 +167,137 @@ describe("Scoring Engine Tests", () => {
       confidence: 0.1,
       sourceQuality: 0.1, // weight = 0.01, evidence quality will fall below 40
     };
-    const list = [lowQualitySec];
-    const scores = calculateScores(list, []);
+    const scores = calculateScores([lowQualitySec], []);
     expect(scores.evidenceQuality).toBeLessThan(40);
     expect(scores.decision).toBe("PASS");
   });
 
   it("should apply missing financial primary data penalty", () => {
-    // Only tavily news present (no financial primary SEC/FMP)
     const lowNews = { ...baseTavilyNews, normalizedValue: 70 };
-    const list = [lowNews];
-    const scores = calculateScores(list, []);
-    // Guardrail penalty of -10 is applied: base 71 - 10 = 61
+    const scores = calculateScores([lowNews], []);
+    // Guardrail penalty of -10 applied: base 71 - 10 = 61
     expect(scores.final).toBe(61);
     expect(scores.decision).toBe("PASS");
   });
+
+  it("should always produce a contribution ledger", () => {
+    const scores = calculateScores(fullEvidence, []);
+    expect(scores.contributionLedger).toBeDefined();
+    expect(scores.contributionLedger.length).toBe(fullEvidence.length);
+  });
+
+  // ─── Company-Identity Invariance ─────────────────────────────────────────
+  // INVARIANT: The score depends only on normalized evidence content,
+  // not on the ticker or company name the evidence is associated with.
+
+  it("INV-1: same normalised evidence with different researchId produces same score", () => {
+    // researchId is the closest proxy to run identity — swapping it should not change score
+    const evidenceA = fullEvidence.map((e) => ({ ...e, researchId: "run_company_A" }));
+    const evidenceB = fullEvidence.map((e) => ({ ...e, researchId: "run_company_B" }));
+    const scoresA = calculateScores(evidenceA, []);
+    const scoresB = calculateScores(evidenceB, []);
+    expect(scoresA.final).toBe(scoresB.final);
+    expect(scoresA.decision).toBe(scoresB.decision);
+  });
+
+  it("INV-2: reordering evidence does not change score", () => {
+    const ordered = [...fullEvidence];
+    const reversed = [...fullEvidence].reverse();
+    const mixed = [fullEvidence[2], fullEvidence[0], fullEvidence[4], fullEvidence[1], fullEvidence[3]];
+    const s1 = calculateScores(ordered, []);
+    const s2 = calculateScores(reversed, []);
+    const s3 = calculateScores(mixed, []);
+    expect(s1.final).toBe(s2.final);
+    expect(s1.final).toBe(s3.final);
+  });
+
+  it("INV-3: duplicating a valid evidence item does not inflate pillar score beyond single-item value", () => {
+    // Duplicate the financial item 5 times — weighted average of identical values must equal the value
+    const duplicated: Evidence[] = Array.from({ length: 5 }, (_, i) => ({
+      ...baseSecFinancial,
+      id: `dup_${i}`,
+    }));
+    const single = [baseSecFinancial];
+    const sDuplicated = calculateScores(duplicated, []);
+    const sSingle = calculateScores(single, []);
+    // Financial pillar score must be the same regardless of duplication
+    expect(sDuplicated.financial).toBe(sSingle.financial);
+  });
+
+  it("INV-4: evidence item with absent normalizedValue is excluded from weighted average", () => {
+    const withMissing: Evidence = {
+      ...baseSecFinancial,
+      id: "ev_missing",
+      normalizedValue: undefined,
+    };
+    const scores = calculateScores([withMissing], []);
+    // No valid normalizedValue → financial pillar score is null (not 50)
+    expect(scores.financial).toBeNull();
+    // Ledger records this item as excluded_absent
+    const ledgerEntry = scores.contributionLedger.find((r) => r.evidenceId === "ev_missing");
+    expect(ledgerEntry).toBeDefined();
+    expect(ledgerEntry!.validityState).toBe("excluded_absent");
+    expect(ledgerEntry!.effectiveValue).toBeNull();
+    expect(ledgerEntry!.finalContribution).toBe(0);
+  });
+
+  it("INV-5: out-of-range normalizedValue (raw financial metric) is excluded, not mapped to neutral", () => {
+    // A PE ratio of 28 or revenue of 94_500 must not silently become a 50 or 100
+    const rawMetricEvidence: Evidence = {
+      ...baseSecFinancial,
+      id: "ev_pe",
+      normalizedValue: 28, // Looks like a PE ratio — within |28| < 1000, but let's use a truly raw one
+    };
+    // Use an absurd absolute value to ensure excluded_range
+    const outOfRangeEvidence: Evidence = {
+      ...baseSecFinancial,
+      id: "ev_oor",
+      normalizedValue: 94500000, // Revenue in millions — clearly a raw metric
+    };
+    const scores = calculateScores([outOfRangeEvidence], []);
+    const ledgerEntry = scores.contributionLedger.find((r) => r.evidenceId === "ev_oor");
+    expect(ledgerEntry!.validityState).toBe("excluded_range");
+    expect(ledgerEntry!.effectiveValue).toBeNull();
+    // Financial pillar score must be null, not 50
+    expect(scores.financial).toBeNull();
+  });
+
+  it("INV-6: cross-category contradiction pair receives no penalty", () => {
+    // Financial + risk claim — different categories → not comparable → no penalty
+    const financial: Evidence = { ...baseSecFinancial, id: "xcat_f" };
+    const risk: Evidence = { ...baseRisk, id: "xcat_r" };
+    const contradictions = [{ severity: "high", evidenceIdA: "xcat_f", evidenceIdB: "xcat_r" }];
+    const scores = calculateScores([financial, risk], contradictions);
+    // Cross-category filter must suppress the penalty entirely
+    expect(scores.contradictionPenalty).toBe(0);
+  });
+
+  it("INV-7: contradiction penalty cannot exceed maxContradictionPenalty regardless of count", () => {
+    // 10 high-severity contradictions would be 10×15 = 150 without a cap
+    const manyContradictions = Array.from({ length: 10 }, (_, i) => ({
+      severity: "high",
+      evidenceIdA: "ev_f1",
+      evidenceIdB: "ev_b1",
+    }));
+    // Place both items in same category so filter passes
+    const sameCatEvidence = [
+      { ...baseSecFinancial, id: "ev_f1", category: "financial" as const },
+      { ...baseSecFinancial, id: "ev_b1", category: "financial" as const, normalizedValue: 10 },
+    ];
+    const scores = calculateScores(sameCatEvidence, manyContradictions);
+    expect(scores.contradictionPenalty).toBeLessThanOrEqual(25);
+  });
+
+  it("INV-8: null final score when insufficient, even with partial evidence", () => {
+    const scores = calculateScores(fullEvidence, [], false);
+    expect(scores.final).toBeNull();
+    expect(scores.decision).toBeNull();
+    // Ledger is still produced for diagnostics
+    expect(scores.contributionLedger.length).toBe(fullEvidence.length);
+  });
 });
+
+
 
 describe("Context Compressor Tests", () => {
   const dummySec: Evidence = {

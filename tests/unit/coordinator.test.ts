@@ -191,6 +191,7 @@ describe("Consensus Engine & Research Coordinator Tests", () => {
         contradictionPenalty: 0,
         final: 83.5,
         decision: "INVEST" as const,
+        contributionLedger: [],
       };
 
       const result = await synthesizeResearchReport("run_abc", "AAPL", [], mockScores);
