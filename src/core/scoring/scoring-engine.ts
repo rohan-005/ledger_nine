@@ -11,6 +11,12 @@ import { areCategoriesComparable } from "./metric-registry";
 import { SCORING_CONFIG } from "@/src/config/scoring.config";
 import { logger } from "@/src/lib/logger";
 
+export const CONTRADICTION_PENALTY_LOW = 0;
+export const CONTRADICTION_PENALTY_MEDIUM = 2;
+export const CONTRADICTION_PENALTY_HIGH = 4;
+export const MAX_CONTRADICTION_PENALTY = 10;
+export const CONTRADICTION_CONFIDENCE_THRESHOLD = 0.70;
+
 // ─── Numeric helpers ────────────────────────────────────────────────────────
 
 /**
@@ -359,10 +365,21 @@ function isUnresolvedPeriodSemantics(claimA: string, claimB: string): boolean {
 
 export function calculateScores(
   evidenceList: readonly Evidence[],
-  contradictionsList: { severity: string; evidenceIdA?: string; evidenceIdB?: string }[],
+  contradictionsList: { severity: string; evidenceIdA?: string; evidenceIdB?: string; confidence?: string | number }[],
   isSufficient = true
 ): ResearchScores {
-  // Pre-process evidenceList to identify any self-paired inconsistencies
+  // Deduplicate evidenceList by unique id to prevent double counting
+  const seenIds = new Set<string>();
+  const uniqueEvidenceList = evidenceList.filter((e) => {
+    if (!e?.id) return false;
+    if (seenIds.has(e.id)) {
+      return false;
+    }
+    seenIds.add(e.id);
+    return true;
+  });
+
+  // Pre-process uniqueEvidenceList to identify any self-paired inconsistencies
   // and reduce confidence of affected items
   const selfInconsistentIds = new Set<string>();
   for (const c of contradictionsList) {
@@ -371,7 +388,7 @@ export function calculateScores(
     }
   }
 
-  const adjustedEvidenceList = evidenceList.map((e) => {
+  const adjustedEvidenceList = uniqueEvidenceList.map((e) => {
     if (selfInconsistentIds.has(e.id)) {
       const currentConf = typeof e.confidence === "string" ? parseFloat(e.confidence) : Number(e.confidence);
       const newConf = isNaN(currentConf) ? 0.4 : Math.max(0.1, currentConf * 0.5);
@@ -415,61 +432,72 @@ export function calculateScores(
   const evidenceMap = new Map(adjustedEvidenceList.map((e) => [e.id, e]));
 
   for (const c of contradictionsList) {
-    const itemA = c.evidenceIdA ? evidenceMap.get(c.evidenceIdA) : null;
-    const itemB = c.evidenceIdB ? evidenceMap.get(c.evidenceIdB) : null;
-
-    // Self-pair rejection check at scoring level
-    if (c.evidenceIdA && c.evidenceIdA === c.evidenceIdB) {
+    // Rule 1: Self-contradictions rejected; penalty = 0
+    if (!c.evidenceIdA || !c.evidenceIdB || c.evidenceIdA === c.evidenceIdB) {
       logger.info("Scoring Filter: Skipped self-paired contradiction from penalty", {
         evidenceId: c.evidenceIdA,
       });
       continue;
     }
 
-    if (itemA && itemB) {
-      // Filter A: Cross-category — different metric families, cannot be direct contradiction
-      if (!areCategoriesComparable(itemA.category, itemB.category)) {
-        logger.info("Contradiction Filter: Skipped — cross-category, incomparable metric families", {
+    // Rule 2: Both evidence items exist
+    const itemA = evidenceMap.get(c.evidenceIdA);
+    const itemB = evidenceMap.get(c.evidenceIdB);
+    if (!itemA || !itemB) {
+      continue;
+    }
+
+    // Rule 3: Claims refer to the same normalized metric/topic (same category)
+    if (!areCategoriesComparable(itemA.category, itemB.category)) {
+      logger.info("Contradiction Filter: Skipped — cross-category, incomparable metric families", {
+        evidenceIdA: itemA.id,
+        evidenceIdB: itemB.id,
+        categoryA: itemA.category,
+        categoryB: itemB.category,
+      });
+      continue;
+    }
+
+    // Rule 4: Claims refer to compatible time periods
+    if (isTemporalMismatch(itemA.claim, itemB.claim)) {
+      logger.info("Contradiction Filter: Skipped — temporal scope mismatch", {
+        evidenceIdA: itemA.id,
+        evidenceIdB: itemB.id,
+      });
+      continue;
+    }
+
+    // Rule 5: Claims are materially incompatible
+    // Check if they are price-like or numeric, and check if difference is material
+    const valA = extractNumericValue(itemA.rawValue ?? itemA.claim);
+    const valB = extractNumericValue(itemB.rawValue ?? itemB.claim);
+    if (valA !== null && valB !== null) {
+      const diff = Math.abs(valA - valB);
+      const maxVal = Math.max(valA, valB);
+      const relativeDiff = maxVal > 0 ? diff / maxVal : 0;
+      if (relativeDiff < 0.02 || diff < 1.0) {
+        logger.info("Contradiction Filter: Skipped — immaterial price variance", {
           evidenceIdA: itemA.id,
           evidenceIdB: itemB.id,
-          categoryA: itemA.category,
-          categoryB: itemB.category,
+          valA,
+          valB,
+          relativeDiff: relativeDiff.toFixed(4),
         });
         continue;
       }
+    }
 
-      // Filter B: Immaterial price variance
-      if (
-        isPriceLike(itemA.claim, itemA.rawValue ?? "") &&
-        isPriceLike(itemB.claim, itemB.rawValue ?? "")
-      ) {
-        const valA = extractNumericValue(itemA.rawValue ?? itemA.claim);
-        const valB = extractNumericValue(itemB.rawValue ?? itemB.claim);
-        if (valA !== null && valB !== null) {
-          const diff = Math.abs(valA - valB);
-          const maxVal = Math.max(valA, valB);
-          const relativeDiff = maxVal > 0 ? diff / maxVal : 0;
-          if (relativeDiff < 0.02 || diff < 1.0) {
-            logger.info("Contradiction Filter: Skipped — immaterial price variance", {
-              evidenceIdA: itemA.id,
-              evidenceIdB: itemB.id,
-              valA,
-              valB,
-              relativeDiff: relativeDiff.toFixed(4),
-            });
-            continue;
-          }
-        }
-      }
-
-      // Filter C: Temporal scope mismatch
-      if (isTemporalMismatch(itemA.claim, itemB.claim)) {
-        logger.info("Contradiction Filter: Skipped — temporal scope mismatch", {
-          evidenceIdA: itemA.id,
-          evidenceIdB: itemB.id,
-        });
-        continue;
-      }
+    // Rule 6: Contradiction confidence is >= 70%
+    const confVal = c.confidence !== undefined 
+      ? (typeof c.confidence === "number" ? c.confidence : parseFloat(String(c.confidence)))
+      : 1.0;
+    if (confVal < CONTRADICTION_CONFIDENCE_THRESHOLD) {
+      logger.info("Contradiction Filter: Skipped — confidence below 70%", {
+        evidenceIdA: itemA.id,
+        evidenceIdB: itemB.id,
+        confidence: confVal,
+      });
+      continue;
     }
 
     filteredContradictions.push(c);
@@ -477,7 +505,7 @@ export function calculateScores(
     let sev = c.severity.toLowerCase();
     
     // Check for unresolved period/projection semantics and downgrade high severity
-    if (sev === "high" && itemA && itemB && isUnresolvedPeriodSemantics(itemA.claim, itemB.claim)) {
+    if (sev === "high" && isUnresolvedPeriodSemantics(itemA.claim, itemB.claim)) {
       logger.info("Scoring: Downgraded high severity contradiction due to unresolved period/projection semantics", {
         evidenceIdA: itemA.id,
         evidenceIdB: itemB.id,
@@ -486,28 +514,25 @@ export function calculateScores(
     }
 
     if (sev === "high") {
-      contradictionPenalty += SCORING_CONFIG.penalties.contradiction.high;
+      contradictionPenalty += CONTRADICTION_PENALTY_HIGH;
     } else if (sev === "medium") {
-      contradictionPenalty += SCORING_CONFIG.penalties.contradiction.medium;
+      contradictionPenalty += CONTRADICTION_PENALTY_MEDIUM;
     } else if (sev === "low") {
-      contradictionPenalty += SCORING_CONFIG.penalties.contradiction.low;
+      contradictionPenalty += CONTRADICTION_PENALTY_LOW;
     }
   }
 
   // Apply global contradiction penalty cap.
-  // This ensures that even many hallucinated or compound contradictions cannot
-  // eliminate a valid partial evidence signal from the score.
-  // The cap is documented in SCORING_CONFIG and is NOT tuned to any fixture.
   const cappedPenalty = Math.min(
     contradictionPenalty,
-    SCORING_CONFIG.penalties.maxContradictionPenalty
+    MAX_CONTRADICTION_PENALTY
   );
 
   if (cappedPenalty < contradictionPenalty) {
     logger.info("Contradiction Filter: Penalty capped at global maximum", {
       rawPenalty: contradictionPenalty,
       cappedPenalty,
-      cap: SCORING_CONFIG.penalties.maxContradictionPenalty,
+      cap: MAX_CONTRADICTION_PENALTY,
     });
   }
 
