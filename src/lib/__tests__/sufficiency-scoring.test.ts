@@ -154,7 +154,7 @@ describe("Error Sanitizer", () => {
   it("scrubs billing link and returns user-friendly limit error", () => {
     const raw = "Error: billing is blocked. Check https://billing.google.com/details?org-12345";
     const res = sanitizeErrorMessage(raw);
-    expect(res).toBe("Service temporarily unavailable due to capacity or API provider limits. Please try again later.");
+    expect(res).toBe("API limit reached for Gemini");
   });
 
   it("scrubs project IDs and credentials", () => {

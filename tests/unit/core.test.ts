@@ -168,7 +168,7 @@ describe("Scoring Engine Tests", () => {
         sourceQuality: 1.0,
         agentId: "financial_agent",
         createdAt: new Date().toISOString(),
-      }
+      } as Evidence
     ];
     const scoresNoPenalty = calculateScores(list, []);
     const scoresWithPenalty = calculateScores(list, [{ severity: "high", evidenceIdA: "ev_f1", evidenceIdB: "ev_f2" }]);

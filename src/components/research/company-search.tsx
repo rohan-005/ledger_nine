@@ -1,26 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-
-export interface StockSuggestion {
-  ticker: string;
-  name: string;
-}
-
-export const CURATED_STOCKS: StockSuggestion[] = [
-  { ticker: "AAPL", name: "Apple Inc." },
-  { ticker: "MSFT", name: "Microsoft Corporation" },
-  { ticker: "NVDA", name: "NVIDIA Corporation" },
-  { ticker: "TSLA", name: "Tesla, Inc." },
-  { ticker: "AMZN", name: "Amazon.com, Inc." },
-  { ticker: "GOOGL", name: "Alphabet Inc." },
-  { ticker: "META", name: "Meta Platforms, Inc." },
-  { ticker: "LLY", name: "Eli Lilly and Company" },
-  { ticker: "AVGO", name: "Broadcom Inc." },
-  { ticker: "JPM", name: "JPMorgan Chase & Co." },
-  { ticker: "V", name: "Visa Inc." },
-  { ticker: "UNH", name: "UnitedHealth Group Incorporated" },
-];
+import { CompanyCatalogItem } from "@/src/data/curatedCompanies";
 
 interface CompanySearchProps {
   value: string;
@@ -39,22 +20,51 @@ export default function CompanySearch({
 }: CompanySearchProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [suggestions, setSuggestions] = useState<CompanyCatalogItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Filter curated stocks based on user input
-  const filteredSuggestions = value.trim()
-    ? CURATED_STOCKS.filter(
-        (stock) =>
-          stock.ticker.toLowerCase().includes(value.toLowerCase()) ||
-          stock.name.toLowerCase().includes(value.toLowerCase())
-      )
-    : CURATED_STOCKS;
+  // Fetch search results (local curated + dynamic FMP) with debouncing
+  useEffect(() => {
+    let active = true;
+    
+    if (!isOpen) {
+      return;
+    }
+
+    const trimmed = value.trim();
+    // Debounce remote searches, fetch curated lists instantly if empty
+    const delay = trimmed ? 250 : 0;
+    
+    setIsLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
+        if (res.ok && active) {
+          const data = await res.json();
+          setSuggestions(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch suggestions", err);
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }, delay);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [value, isOpen]);
 
   // Reset highlight index when suggestions list changes
   useEffect(() => {
     setHighlightedIndex(-1);
-  }, [value]);
+  }, [suggestions]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -87,27 +97,27 @@ export default function CompanySearch({
       case "ArrowDown":
         e.preventDefault();
         setHighlightedIndex((prev) =>
-          prev < filteredSuggestions.length - 1 ? prev + 1 : 0
+          prev < suggestions.length - 1 ? prev + 1 : 0
         );
         break;
       case "ArrowUp":
         e.preventDefault();
         setHighlightedIndex((prev) =>
-          prev > 0 ? prev - 1 : filteredSuggestions.length - 1
+          prev > 0 ? prev - 1 : suggestions.length - 1
         );
         break;
       case "Enter":
         e.preventDefault();
         if (
           highlightedIndex >= 0 &&
-          highlightedIndex < filteredSuggestions.length
+          highlightedIndex < suggestions.length
         ) {
-          const selected = filteredSuggestions[highlightedIndex];
-          onSelect(selected.ticker);
+          const selected = suggestions[highlightedIndex];
+          onSelect(selected.canonicalTicker);
           setIsOpen(false);
-        } else if (filteredSuggestions.length > 0) {
+        } else if (suggestions.length > 0) {
           // If no highlight but suggestions exist, select the first one
-          onSelect(filteredSuggestions[0].ticker);
+          onSelect(suggestions[0].canonicalTicker);
           setIsOpen(false);
         } else {
           // No suggestions, submit the raw text typed by user
@@ -124,8 +134,8 @@ export default function CompanySearch({
     }
   };
 
-  const handleSelect = (ticker: string) => {
-    onSelect(ticker);
+  const handleSelect = (canonicalTicker: string) => {
+    onSelect(canonicalTicker);
     setIsOpen(false);
     inputRef.current?.focus();
   };
@@ -145,7 +155,7 @@ export default function CompanySearch({
           autoCapitalize="characters"
           spellCheck={false}
           maxLength={50}
-          placeholder="Search by company name or type ticker (e.g. Apple, AAPL)"
+          placeholder="Search by company name or type ticker (e.g. Apple, AAPL, Reliance)"
           disabled={disabled}
           value={value}
           onFocus={() => setIsOpen(true)}
@@ -154,7 +164,7 @@ export default function CompanySearch({
             setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          aria-expanded={isOpen && filteredSuggestions.length > 0}
+          aria-expanded={isOpen && suggestions.length > 0}
           aria-autocomplete="list"
           aria-controls="company-search-suggestions"
           aria-invalid={!!error}
@@ -187,32 +197,40 @@ export default function CompanySearch({
       )}
 
       {/* Suggestion list */}
-      {isOpen && filteredSuggestions.length > 0 && (
+      {isOpen && (suggestions.length > 0 || isLoading) && (
         <ul
           id="company-search-suggestions"
           role="listbox"
           className="absolute z-50 w-full mt-1 bg-white border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto divide-y divide-border py-1"
         >
-          {filteredSuggestions.map((stock, index) => {
+          {isLoading && suggestions.length === 0 && (
+            <li className="px-4 py-3 text-sm text-foreground-secondary text-center">
+              Searching...
+            </li>
+          )}
+          
+          {suggestions.map((stock, index) => {
             const isHighlighted = index === highlightedIndex;
             return (
               <li
-                key={stock.ticker}
+                key={stock.canonicalTicker}
                 id={`suggestion-item-${index}`}
                 role="option"
                 aria-selected={isHighlighted}
                 onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => handleSelect(stock.ticker)}
+                onClick={() => handleSelect(stock.canonicalTicker)}
                 className={`px-4 py-2.5 flex items-center justify-between text-sm cursor-pointer transition-colors ${
                   isHighlighted ? "bg-blue-50 text-blue-900" : "text-foreground bg-white"
                 }`}
               >
                 <div className="flex flex-col">
-                  <span className="font-semibold">{stock.name}</span>
-                  <span className="text-xs text-foreground-secondary font-mono">{stock.ticker}</span>
+                  <span className="font-semibold text-left">{stock.name}</span>
+                  <span className="text-xs text-foreground-secondary text-left font-mono">
+                    {stock.ticker} · {stock.exchange} · {stock.country}
+                  </span>
                 </div>
                 <span className="text-xs font-semibold px-2 py-0.5 bg-background border border-border text-foreground-secondary rounded font-mono">
-                  {stock.ticker}
+                  {stock.exchange}
                 </span>
               </li>
             );

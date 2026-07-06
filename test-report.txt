@@ -1,0 +1,167 @@
+
+ RUN  v4.1.9 /home/frosthowl/work/insideiim/ledger_nine
+
+stdout | tests/unit/integrity-hardening.test.ts > Research Integrity Hardening - Scoring Engine Adjustments > should halve confidence of self-inconsistent evidence and skip self-paired contradictions from penalties
+{"timestamp":"2026-07-06T17:02:00.853Z","level":"INFO","message":"Scoring: Detected internal claim inconsistency, reducing confidence","evidenceId":"ev_1","oldConfidence":0.8,"newConfidence":0.4}
+{"timestamp":"2026-07-06T17:02:00.854Z","level":"INFO","message":"Scoring Filter: Skipped self-paired contradiction from penalty","evidenceId":"ev_1"}
+
+stdout | tests/unit/integrity-hardening.test.ts > Research Integrity Hardening - Scoring Engine Adjustments > should downgrade high severity to medium when unresolved period/projection semantics are present
+{"timestamp":"2026-07-06T17:02:00.855Z","level":"INFO","message":"Scoring: Downgraded high severity contradiction due to unresolved period/projection semantics","evidenceIdA":"ev_1","evidenceIdB":"ev_2"}
+
+stdout | tests/unit/unseen-company.test.ts > Unseen Company (ZXKQ / Zeta Xeon Corp) — Generic Scoring Invariants > cross-category contradiction pair from unknown company receives no penalty
+{"timestamp":"2026-07-06T17:02:00.858Z","level":"INFO","message":"Contradiction Filter: Skipped — cross-category, incomparable metric families","evidenceIdA":"zxkq_f1","evidenceIdB":"zxkq_r1","categoryA":"financial","categoryB":"risk"}
+
+stdout | src/lib/__tests__/simplified-rules.test.ts > Simplified Research Pipeline Offline Tests (Exactly 20 Tests) > Test 8: Contradictions - self-contradiction check rejects when evidenceIdA === evidenceIdB
+{"timestamp":"2026-07-06T17:02:00.857Z","level":"INFO","message":"Scoring: Detected internal claim inconsistency, reducing confidence","evidenceId":"e1","oldConfidence":0.9,"newConfidence":0.45}
+{"timestamp":"2026-07-06T17:02:00.859Z","level":"INFO","message":"Scoring Filter: Skipped self-paired contradiction from penalty","evidenceId":"e1"}
+
+stdout | tests/unit/unseen-company.test.ts > Unseen Company (ZXKQ / Zeta Xeon Corp) — Generic Scoring Invariants > contradiction penalty for unknown company is bounded by global cap
+{"timestamp":"2026-07-06T17:02:00.860Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.860Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"cap_a","evidenceIdB":"cap_b","valA":12,"valB":12,"relativeDiff":"0.0000"}
+
+stdout | src/lib/__tests__/simplified-rules.test.ts > Simplified Research Pipeline Offline Tests (Exactly 20 Tests) > Test 10: Contradictions - rejects when categories/topics do not match (cross-category)
+{"timestamp":"2026-07-06T17:02:00.861Z","level":"INFO","message":"Contradiction Filter: Skipped — cross-category, incomparable metric families","evidenceIdA":"e1","evidenceIdB":"e2","categoryA":"financial","categoryB":"risk"}
+
+ ✓ tests/unit/integrity-hardening.test.ts (5 tests) 10ms
+stdout | src/lib/__tests__/simplified-rules.test.ts > Simplified Research Pipeline Offline Tests (Exactly 20 Tests) > Test 12: Contradictions - rejects when claims refer to different temporal scopes
+{"timestamp":"2026-07-06T17:02:00.862Z","level":"INFO","message":"Contradiction Filter: Skipped — temporal scope mismatch","evidenceIdA":"e1","evidenceIdB":"e2"}
+
+stdout | src/lib/__tests__/simplified-rules.test.ts > Simplified Research Pipeline Offline Tests (Exactly 20 Tests) > Test 14: Contradictions - rejects when price variance is immaterial (<2% and <1.0)
+{"timestamp":"2026-07-06T17:02:00.864Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"e1","evidenceIdB":"e2","valA":100,"valB":101,"relativeDiff":"0.0099"}
+
+stdout | src/lib/__tests__/simplified-rules.test.ts > Simplified Research Pipeline Offline Tests (Exactly 20 Tests) > Test 16: Contradictions - rejects when contradiction confidence is below 70%
+{"timestamp":"2026-07-06T17:02:00.865Z","level":"INFO","message":"Contradiction Filter: Skipped — confidence below 70%","evidenceIdA":"e1","evidenceIdB":"e2","confidence":0.69}
+
+stdout | src/lib/__tests__/simplified-rules.test.ts > Simplified Research Pipeline Offline Tests (Exactly 20 Tests) > Test 18: Contradictions - total penalty is capped at max -10 points
+{"timestamp":"2026-07-06T17:02:00.867Z","level":"INFO","message":"Contradiction Filter: Penalty capped at global maximum","rawPenalty":45,"cappedPenalty":25,"cap":25}
+
+stdout | tests/unit/symbol-resolver.test.ts > Symbol Resolver Tests > should resolve a curated stock instantly
+{"timestamp":"2026-07-06T17:02:00.869Z","level":"INFO","message":"Resolver: Resolving symbol","query":"AAPL"}
+{"timestamp":"2026-07-06T17:02:00.870Z","level":"INFO","message":"Resolver: Local catalog match found","localMatch":{"name":"Apple Inc.","ticker":"AAPL","canonicalTicker":"AAPL","exchange":"NASDAQ","country":"US","aliases":["Apple","Mac","iPhone"]}}
+
+stdout | tests/unit/symbol-resolver.test.ts > Symbol Resolver Tests > should resolve a curated Indian stock instantly
+{"timestamp":"2026-07-06T17:02:00.871Z","level":"INFO","message":"Resolver: Resolving symbol","query":"Reliance"}
+{"timestamp":"2026-07-06T17:02:00.871Z","level":"INFO","message":"Resolver: Local catalog match found","localMatch":{"name":"Reliance Industries Limited","ticker":"RELIANCE","canonicalTicker":"RELIANCE.NS","exchange":"NSE","country":"India","aliases":["Reliance","RIL"]}}
+
+ ✓ tests/unit/unseen-company.test.ts (10 tests) 13ms
+ ✓ src/lib/__tests__/simplified-rules.test.ts (20 tests) 19ms
+stdout | tests/unit/symbol-resolver.test.ts > Symbol Resolver Tests > should resolve with exchange suffix BO or NS
+{"timestamp":"2026-07-06T17:02:00.872Z","level":"INFO","message":"Resolver: Resolving symbol","query":"TCS.NS"}
+{"timestamp":"2026-07-06T17:02:00.872Z","level":"INFO","message":"Resolver: Local catalog match found","localMatch":{"name":"Tata Consultancy Services Limited","ticker":"TCS","canonicalTicker":"TCS.NS","exchange":"NSE","country":"India","aliases":["Tata Consultancy Services","Tata Consultancy"]}}
+
+stdout | tests/unit/symbol-resolver.test.ts > Symbol Resolver Tests > should fall back to FMP search API for unknown stocks
+{"timestamp":"2026-07-06T17:02:00.873Z","level":"INFO","message":"Resolver: Resolving symbol","query":"Tata Steel"}
+{"timestamp":"2026-07-06T17:02:00.873Z","level":"INFO","message":"Resolver: Local catalog match found","localMatch":{"name":"Tata Steel Limited","ticker":"TATASTEEL","canonicalTicker":"TATASTEEL.NS","exchange":"NSE","country":"India","aliases":["Tata Steel"]}}
+
+ ✓ tests/unit/symbol-resolver.test.ts (4 tests) 7ms
+ ✓ tests/frontend/frontend.test.ts (37 tests) 34ms
+stdout | tests/unit/core.test.ts > Scoring Engine Tests > INV-6: cross-category contradiction pair receives no penalty
+{"timestamp":"2026-07-06T17:02:00.879Z","level":"INFO","message":"Contradiction Filter: Skipped — cross-category, incomparable metric families","evidenceIdA":"xcat_f","evidenceIdB":"xcat_r","categoryA":"financial","categoryB":"risk"}
+
+stdout | tests/unit/core.test.ts > Scoring Engine Tests > INV-7: contradiction penalty cannot exceed maxContradictionPenalty regardless of count
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.880Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+{"timestamp":"2026-07-06T17:02:00.881Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"ev_f1","evidenceIdB":"ev_b1","valA":20,"valB":20,"relativeDiff":"0.0000"}
+
+ ✓ tests/unit/core.test.ts (20 tests) 13ms
+ ✓ tests/unit/search-route.test.ts (2 tests) 9ms
+stdout | src/lib/__tests__/sufficiency-scoring.test.ts > Scoring Engine & Contradiction Filters > filters out immaterial price contradictions (<2% relative difference)
+{"timestamp":"2026-07-06T17:02:00.904Z","level":"INFO","message":"Contradiction Filter: Skipped — immaterial price variance","evidenceIdA":"e1","evidenceIdB":"e2","valA":185,"valB":187,"relativeDiff":"0.0107"}
+
+stdout | src/lib/__tests__/sufficiency-scoring.test.ts > Scoring Engine & Contradiction Filters > filters out temporal mismatch contradictions (short term vs long term)
+{"timestamp":"2026-07-06T17:02:00.906Z","level":"INFO","message":"Contradiction Filter: Skipped — temporal scope mismatch","evidenceIdA":"e1","evidenceIdB":"e2"}
+
+ ✓ src/lib/__tests__/sufficiency-scoring.test.ts (13 tests) 14ms
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should succeed on first primary attempt if no errors occur
+{"timestamp":"2026-07-06T17:02:00.952Z","level":"INFO","message":"LLM Router: Attempting primary specialist (Gemini)","attempt":1}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should retry primary once and succeed on second attempt if first fails
+{"timestamp":"2026-07-06T17:02:00.955Z","level":"INFO","message":"LLM Router: Attempting primary specialist (Gemini)","attempt":1}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Report Synthesizer > should successfully call LLM and generate research report
+{"timestamp":"2026-07-06T17:02:00.978Z","level":"INFO","message":"Committee: Attempting report synthesis with Gemini 2.5 Pro","researchId":"run_abc"}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Report Synthesizer > should successfully call LLM and generate research report
+{"timestamp":"2026-07-06T17:02:00.979Z","level":"INFO","message":"Committee: Report synthesis with Router fallback succeeded","researchId":"run_abc"}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should coordinate a full pipeline execution successfully
+{"timestamp":"2026-07-06T17:02:00.981Z","level":"INFO","message":"Coordinator: Executing pipeline","researchId":"run_abc","ticker":"AAPL"}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should coordinate a full pipeline execution successfully
+{"timestamp":"2026-07-06T17:02:00.981Z","level":"INFO","message":"Resolver: Resolving symbol","query":"AAPL"}
+{"timestamp":"2026-07-06T17:02:00.982Z","level":"INFO","message":"Resolver: Local catalog match found","localMatch":{"name":"Apple Inc.","ticker":"AAPL","canonicalTicker":"AAPL","exchange":"NASDAQ","country":"US","aliases":["Apple","Mac","iPhone"]}}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should coordinate a full pipeline execution successfully
+{"timestamp":"2026-07-06T17:02:00.983Z","level":"INFO","message":"Coordinator: Pipeline reached terminal state","researchId":"run_abc","ticker":"AAPL","outcome":"sufficient","sufficiencyPassed":true}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should persist outcome=insufficient_evidence when agents fail but gate executes
+{"timestamp":"2026-07-06T17:02:00.984Z","level":"INFO","message":"Coordinator: Executing pipeline","researchId":"run_abc","ticker":"AAPL"}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should persist outcome=insufficient_evidence when agents fail but gate executes
+{"timestamp":"2026-07-06T17:02:00.985Z","level":"INFO","message":"Resolver: Resolving symbol","query":"AAPL"}
+{"timestamp":"2026-07-06T17:02:00.985Z","level":"INFO","message":"Resolver: Local catalog match found","localMatch":{"name":"Apple Inc.","ticker":"AAPL","canonicalTicker":"AAPL","exchange":"NASDAQ","country":"US","aliases":["Apple","Mac","iPhone"]}}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should persist outcome=insufficient_evidence when agents fail but gate executes
+{"timestamp":"2026-07-06T17:02:00.985Z","level":"INFO","message":"Coordinator: Pipeline reached terminal state","researchId":"run_abc","ticker":"AAPL","outcome":"insufficient_evidence","sufficiencyPassed":false}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should persist null scores when gate is insufficient
+{"timestamp":"2026-07-06T17:02:00.986Z","level":"INFO","message":"Coordinator: Executing pipeline","researchId":"run_abc","ticker":"AAPL"}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should persist null scores when gate is insufficient
+{"timestamp":"2026-07-06T17:02:00.986Z","level":"INFO","message":"Resolver: Resolving symbol","query":"AAPL"}
+{"timestamp":"2026-07-06T17:02:00.986Z","level":"INFO","message":"Resolver: Local catalog match found","localMatch":{"name":"Apple Inc.","ticker":"AAPL","canonicalTicker":"AAPL","exchange":"NASDAQ","country":"US","aliases":["Apple","Mac","iPhone"]}}
+
+stdout | tests/unit/coordinator.test.ts > Consensus Engine & Research Coordinator Tests > Research Coordinator Pipeline > should persist null scores when gate is insufficient
+{"timestamp":"2026-07-06T17:02:00.986Z","level":"INFO","message":"Coordinator: Pipeline reached terminal state","researchId":"run_abc","ticker":"AAPL","outcome":"insufficient_evidence","sufficiencyPassed":false}
+
+ ✓ tests/unit/coordinator.test.ts (6 tests) 13ms
+ ✓ tests/unit/integrity.test.ts (3 tests) 10ms
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should retry primary once and succeed on second attempt if first fails
+{"timestamp":"2026-07-06T17:02:01.456Z","level":"INFO","message":"LLM Router: Attempting primary specialist (Gemini)","attempt":2}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should fall back to Groq if primary fails 2 times
+{"timestamp":"2026-07-06T17:02:01.457Z","level":"INFO","message":"LLM Router: Attempting primary specialist (Gemini)","attempt":1}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should fall back to Groq if primary fails 2 times
+{"timestamp":"2026-07-06T17:02:01.958Z","level":"INFO","message":"LLM Router: Attempting primary specialist (Gemini)","attempt":2}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should fall back to Groq if primary fails 2 times
+{"timestamp":"2026-07-06T17:02:01.958Z","level":"INFO","message":"LLM Router: Triggering fallback to Groq specialist"}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should compress evidence before Groq fallback if a prompt builder is provided
+{"timestamp":"2026-07-06T17:02:01.960Z","level":"INFO","message":"LLM Router: Attempting primary specialist (Gemini)","attempt":1}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should compress evidence before Groq fallback if a prompt builder is provided
+{"timestamp":"2026-07-06T17:02:02.461Z","level":"INFO","message":"LLM Router: Attempting primary specialist (Gemini)","attempt":2}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should compress evidence before Groq fallback if a prompt builder is provided
+{"timestamp":"2026-07-06T17:02:02.461Z","level":"INFO","message":"LLM Router: Triggering fallback to Groq specialist"}
+
+stdout | tests/unit/llm.test.ts > LLM Router Tests > should compress evidence before Groq fallback if a prompt builder is provided
+{"timestamp":"2026-07-06T17:02:02.462Z","level":"INFO","message":"LLM Router: Rebuilt fallback prompt with compressed context","originalCount":1,"compressedCount":1}
+
+ ✓ tests/unit/llm.test.ts (4 tests) 1514ms
+     ✓ should retry primary once and succeed on second attempt if first fails  502ms
+     ✓ should fall back to Groq if primary fails 2 times  503ms
+     ✓ should compress evidence before Groq fallback if a prompt builder is provided  502ms
+
+ Test Files  11 passed (11)
+      Tests  124 passed (124)
+   Start at  22:32:00
+   Duration  1.98s (transform 1.79s, setup 0ms, import 2.80s, tests 1.65s, environment 1ms)
+

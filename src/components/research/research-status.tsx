@@ -48,7 +48,7 @@ export default function ResearchStatusPanel({
     else if (currentNode === "committee") pct = 90;
   }
 
-  if (status === "failed") {
+  if (status === "failed" || status === "interrupted") {
     return (
       <div className="w-full max-w-lg bg-white border border-red-200 rounded-2xl p-6 space-y-4 shadow-sm">
         <div className="flex items-center gap-3">
@@ -56,7 +56,9 @@ export default function ResearchStatusPanel({
             ✕
           </span>
           <div>
-            <h2 className="text-base font-bold text-red-700">Research Pipeline Failed</h2>
+            <h2 className="text-base font-bold text-red-700">
+              {status === "interrupted" ? "Research Pipeline Interrupted" : "Research Pipeline Failed"}
+            </h2>
             <p className="text-xs text-foreground-secondary">
               Unable to complete autonomous analysis for <strong className="font-mono">{ticker}</strong>
             </p>

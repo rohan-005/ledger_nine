@@ -9,6 +9,7 @@ export function sanitizeErrorMessage(message: string | null | undefined): string
     return "An unknown error occurred during execution.";
   }
 
+  const originalLower = message.toLowerCase();
   let sanitized = message;
 
   // 1. Scrub potential credentials, keys, or bearer tokens
@@ -45,7 +46,25 @@ export function sanitizeErrorMessage(message: string | null | undefined): string
     lowerMsg.includes("balance") ||
     lowerMsg.includes("payment")
   ) {
-    return "Service temporarily unavailable due to capacity or API provider limits. Please try again later.";
+    let providerName = "";
+    if (originalLower.includes("fmp") || originalLower.includes("financial modeling prep")) {
+      providerName = "FMP";
+    } else if (originalLower.includes("finnhub")) {
+      providerName = "Finnhub";
+    } else if (originalLower.includes("newsapi") || originalLower.includes("news api")) {
+      providerName = "NewsAPI";
+    } else if (originalLower.includes("tavily")) {
+      providerName = "Tavily";
+    } else if (originalLower.includes("gemini") || originalLower.includes("google")) {
+      providerName = "Gemini";
+    } else if (originalLower.includes("groq")) {
+      providerName = "Groq";
+    }
+
+    if (providerName) {
+      return `API limit reached for ${providerName}`;
+    }
+    return "API limit reached";
   }
 
   return sanitized;

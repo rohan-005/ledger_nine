@@ -8,7 +8,7 @@ import { logger } from "@/src/lib/logger";
 const BASE_URL = "https://financialmodelingprep.com/stable";
 
 async function fmpFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
-  const ticker = (params.symbol || "unknown").toUpperCase();
+  const ticker = (params.symbol || params.query || "unknown").toUpperCase();
   const limit = params.limit || "";
   const period = params.period || "";
   const dateBucket = new Date().toISOString().slice(0, 10); // Daily cache bucket
@@ -138,5 +138,32 @@ export const fmpClient = {
       throw new IntegrationError("FMP quote error", "FMP", `No quote found for ticker ${ticker}`);
     }
     return data[0] as Record<string, unknown>;
+  },
+
+  async search(query: string, limit = 10) {
+    const [symbolRes, nameRes] = await Promise.allSettled([
+      fmpFetch<any[]>("search-symbol", { query, limit: String(limit) }),
+      fmpFetch<any[]>("search-name", { query, limit: String(limit) })
+    ]);
+    
+    const symbols = symbolRes.status === "fulfilled" && Array.isArray(symbolRes.value) ? symbolRes.value : [];
+    const names = nameRes.status === "fulfilled" && Array.isArray(nameRes.value) ? nameRes.value : [];
+    
+    const merged = new Map<string, any>();
+    symbols.forEach((item) => {
+      if (item && item.symbol) {
+        merged.set(item.symbol.toUpperCase(), item);
+      }
+    });
+    names.forEach((item) => {
+      if (item && item.symbol) {
+        const key = item.symbol.toUpperCase();
+        if (!merged.has(key)) {
+          merged.set(key, item);
+        }
+      }
+    });
+    
+    return Array.from(merged.values());
   },
 };

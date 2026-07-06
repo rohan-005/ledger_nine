@@ -5,6 +5,7 @@ import { researchRepository } from "@/src/db/repositories/research.repository";
 import { scoreRepository } from "@/src/db/repositories/score.repository";
 import { fmpClient } from "@/src/integrations/fmp/fmp.client";
 import { parseAssetProfile } from "@/src/lib/research/asset-identity";
+import { resolveSymbol } from "@/src/lib/market/symbolResolver";
 import { checkSufficiency } from "@/src/lib/research/sufficiency";
 import { sanitizeErrorMessage } from "@/src/lib/errors-sanitizer";
 import { agentRunRepository } from "@/src/db/repositories/agent-run.repository";
@@ -121,17 +122,51 @@ export const researchCoordinator = {
     const earningsRunId = await startAgent("earnings");
 
     try {
-      // 1. Fetch Company Name & Resolve Asset Identity
+      // 1. Resolve Symbol & Fetch Company Name
+      const canonicalSymbol = await resolveSymbol(ticker);
+      if (!canonicalSymbol) {
+        logger.info("Coordinator: Failed to resolve symbol. Exiting early.", { researchId, ticker });
+        
+        await agentRunRepository.failAgentRun(financialRunId, "Unresolved ticker");
+        await agentRunRepository.failAgentRun(secRunId, "Unresolved ticker");
+        await agentRunRepository.failAgentRun(macroRunId, "Unresolved ticker");
+        await agentRunRepository.failAgentRun(earningsRunId, "Unresolved ticker");
+
+        await reportRepository.upsertReport({
+          id: generateId("rep"),
+          researchId,
+          thesis: "",
+          bullCase: JSON.stringify([]),
+          bearCase: JSON.stringify([]),
+          keyRisks: JSON.stringify([]),
+          summary: "",
+          createdAt: new Date(),
+        });
+
+        await researchRepository.updateCurrentNode(researchId, "completed");
+        await researchRepository.markCompleted(
+          researchId,
+          ticker,
+          "asset_unresolved",
+          ["UNRESOLVED_TICKER"],
+          []
+        );
+        return;
+      }
+
       let profilePayload: Record<string, any> | null = null;
+      const fmpSymbol = canonicalSymbol.providerSymbols.fmp;
+      const finnhubSymbol = canonicalSymbol.providerSymbols.finnhub;
+
       try {
-        profilePayload = await fmpClient.getCompanyProfile(ticker);
+        profilePayload = await fmpClient.getCompanyProfile(fmpSymbol);
       } catch (err) {
-        logger.warn("Coordinator: Failed to retrieve company profile from FMP, trying Finnhub", { ticker, error: err });
+        logger.warn("Coordinator: Failed to retrieve company profile from FMP, trying Finnhub", { fmpSymbol, error: err });
         try {
-          const finnhubProfile = await finnhubClient.getCompanyProfile(ticker);
+          const finnhubProfile = await finnhubClient.getCompanyProfile(finnhubSymbol);
           if (finnhubProfile) {
             profilePayload = {
-              symbol: ticker,
+              symbol: fmpSymbol,
               companyName: finnhubProfile.name,
               exchange: finnhubProfile.exchange,
               country: finnhubProfile.country,
@@ -139,8 +174,19 @@ export const researchCoordinator = {
             };
           }
         } catch (fhErr) {
-          logger.warn("Coordinator: Failed to retrieve company profile from Finnhub", { ticker, error: fhErr });
+          logger.warn("Coordinator: Failed to retrieve company profile from Finnhub", { finnhubSymbol, error: fhErr });
         }
+      }
+
+      if (!profilePayload) {
+        logger.warn("Coordinator: Profile APIs failed, falling back to resolved canonical symbol information", { ticker });
+        profilePayload = {
+          symbol: canonicalSymbol.canonicalTicker,
+          companyName: canonicalSymbol.companyName,
+          exchange: canonicalSymbol.exchange,
+          country: canonicalSymbol.country,
+          currency: canonicalSymbol.country === "India" ? "INR" : "USD",
+        };
       }
 
       const identity = parseAssetProfile(ticker, profilePayload);
@@ -169,7 +215,7 @@ export const researchCoordinator = {
         await researchRepository.updateCurrentNode(researchId, "completed");
         await researchRepository.markCompleted(
           researchId,
-          ticker,
+          canonicalSymbol.canonicalTicker,
           "asset_unresolved",
           ["UNRESOLVED_TICKER"],
           []
@@ -177,7 +223,7 @@ export const researchCoordinator = {
         return;
       }
 
-      const companyName = identity.companyName || ticker;
+      const companyName = identity.companyName || canonicalSymbol.companyName;
 
       // 2. Run parallel factual data queries
       await researchRepository.updateCurrentNode(researchId, "specialists");
@@ -195,14 +241,14 @@ export const researchCoordinator = {
         newsApiRes,
         tavilyRes
       ] = await Promise.allSettled([
-        fmpClient.getIncomeStatements(ticker, 4),
-        fmpClient.getBalanceSheets(ticker, 4),
-        fmpClient.getCashFlowStatements(ticker, 4),
-        fmpClient.getQuote(ticker),
-        finnhubClient.getQuote(ticker),
-        finnhubClient.getCompanyNews(ticker, fromDate, toDate),
-        newsapiClient.searchEverything(companyName, 10),
-        tavilyClient.search(`${companyName} investment analysis ${ticker}`, ticker)
+        fmpClient.getIncomeStatements(canonicalSymbol.providerSymbols.fmp, 4),
+        fmpClient.getBalanceSheets(canonicalSymbol.providerSymbols.fmp, 4),
+        fmpClient.getCashFlowStatements(canonicalSymbol.providerSymbols.fmp, 4),
+        fmpClient.getQuote(canonicalSymbol.providerSymbols.fmp),
+        finnhubClient.getQuote(canonicalSymbol.providerSymbols.finnhub),
+        finnhubClient.getCompanyNews(canonicalSymbol.providerSymbols.finnhub, fromDate, toDate),
+        newsapiClient.searchEverything(canonicalSymbol.providerSymbols.newsapi, 10),
+        tavilyClient.search(`${canonicalSymbol.providerSymbols.tavily} investment analysis ${canonicalSymbol.displayTicker}`, canonicalSymbol.displayTicker)
       ]);
 
       const latency = Date.now() - startTime;
