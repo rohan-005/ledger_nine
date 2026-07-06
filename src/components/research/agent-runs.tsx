@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AgentRun } from "@/src/types/frontend";
+import { AgentRun, EvidenceItem } from "@/src/types/frontend";
 import { Card } from "@/src/components/ui/card";
 import { Tooltip } from "@/src/components/ui/tooltip";
 
@@ -12,7 +12,15 @@ const RESEARCH_AREAS = [
   { id: "earnings", label: "Earnings commentary" },
 ];
 
-export default function AgentRunsPanel({ agentRuns }: { agentRuns: AgentRun[] }) {
+import { getFriendlySourceName } from "@/src/lib/presentation/helpers";
+
+export default function AgentRunsPanel({
+  agentRuns,
+  evidence,
+}: {
+  agentRuns: AgentRun[];
+  evidence: EvidenceItem[];
+}) {
   if (agentRuns.length === 0) {
     return (
       <section id="agents" aria-labelledby="agents-heading" className="space-y-4">
@@ -46,12 +54,46 @@ export default function AgentRunsPanel({ agentRuns }: { agentRuns: AgentRun[] })
           const run = agentRuns.find((r) => r.agentId === area.id);
           const status = run?.status === "completed" ? "Completed" : run?.status === "skipped" ? "Skipped" : "Unavailable";
           const statusColor = status === "Completed" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : status === "Skipped" ? "bg-amber-50 text-amber-700 border-amber-100" : "bg-red-50 text-red-700 border-red-100";
+
+          // Derive data sources from actual evidence sourceType
+          const agentEvidence = evidence.filter((e) => e.agentId === area.id);
+          const uniqueSourceTypes = Array.from(new Set(agentEvidence.map((e) => e.sourceType)));
+          const dataSourcesStr = uniqueSourceTypes.length > 0 
+            ? uniqueSourceTypes.map(t => getFriendlySourceName(t)).join(", ")
+            : run?.status === "completed" ? "None (No facts collected)" : "—";
+
+          const reasoningModel = run?.provider && run?.model
+            ? `${run.provider.charAt(0).toUpperCase() + run.provider.slice(1)} · ${run.model}`
+            : "—";
+          const latency = run?.latencyMs !== null && run?.latencyMs !== undefined ? `${run.latencyMs} ms` : "—";
+          const fallback = run?.fallbackUsed ? `Yes (${run.fallbackReason ?? "API Limit"})` : "No";
+
           return (
-            <div key={area.id} className="flex items-center justify-between p-4 bg-white border border-border rounded-xl shadow-xs">
-              <span className="font-semibold text-foreground text-sm">{area.label}</span>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border capitalize ${statusColor}`}>
-                {status}
-              </span>
+            <div key={area.id} className="bg-white border border-border rounded-xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-foreground text-sm">{area.label}</span>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border capitalize ${statusColor}`}>
+                  {status}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs border-t border-border/40 pt-3">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-foreground-secondary font-bold uppercase tracking-wider">Data Sources</p>
+                  <p className="font-semibold text-foreground">{dataSourcesStr}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-foreground-secondary font-bold uppercase tracking-wider">Reasoning Model</p>
+                  <p className="font-semibold text-foreground">{reasoningModel}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-foreground-secondary font-bold uppercase tracking-wider">Latency</p>
+                  <p className="font-semibold text-foreground">{latency}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-foreground-secondary font-bold uppercase tracking-wider">Fallback Used</p>
+                  <p className="font-semibold text-foreground">{fallback}</p>
+                </div>
+              </div>
             </div>
           );
         })}

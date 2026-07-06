@@ -435,6 +435,30 @@ export default function ResearchPageClient({ id }: { id: string }) {
       {/* Warning Banner */}
       {warningBanner}
 
+      {/* Research Coverage Summary Card */}
+      {showDetailedResults && (
+        <div className="bg-white border border-border rounded-2xl p-6 shadow-xs space-y-4">
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Research Coverage & Provenance</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div className="space-y-2">
+              <span className="font-semibold text-foreground-secondary">Data Sources Consulted:</span>
+              <ul className="list-disc list-inside space-y-1 text-foreground-secondary text-xs">
+                <li><strong>Company Filings:</strong> SEC Edgar regulatory filings for financial disclosures and risk factors.</li>
+                <li><strong>Financial Statements:</strong> Financial Modeling Prep (FMP) standardized reports.</li>
+                <li><strong>Market & News Context:</strong> Tavily Search for real-time web articles and news.</li>
+                <li><strong>Earnings & Macro Data:</strong> Alpha Vantage for corporate earnings commentary and historical pricing.</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <span className="font-semibold text-foreground-secondary">Reasoning Engines:</span>
+              <p className="text-xs text-foreground-secondary leading-relaxed">
+                Advanced reasoning models (including Google Gemini and Groq Llama) were utilized as independent experts to structure, extract, and reconcile evidence claims across all domains.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Overview Verdict section */}
       {showDetailedResults && (
         <>
@@ -467,7 +491,7 @@ export default function ResearchPageClient({ id }: { id: string }) {
       )}
 
       {/* Contradiction Reconciliation Audit */}
-      {contradictions && contradictions.length > 0 && (
+      {contradictions && (
         <div id="contradictions" className="scroll-mt-20">
           <ContradictionList contradictions={contradictions} evidenceMap={evidenceMap} />
         </div>
@@ -476,7 +500,7 @@ export default function ResearchPageClient({ id }: { id: string }) {
       {/* Research Team Agent Runs */}
       {agents && agents.length > 0 && (
         <div id="agents" className="scroll-mt-20">
-          <AgentRunsPanel agentRuns={agents} />
+          <AgentRunsPanel agentRuns={agents} evidence={evidence || []} />
         </div>
       )}
 

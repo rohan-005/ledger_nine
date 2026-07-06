@@ -338,20 +338,65 @@ function calculateEvidenceQualityBreakdown(
  * @param contradictionsList — Contradiction pairs from the LLM detector + DB.
  * @param isSufficient — Whether the sufficiency gate passed.
  */
+const PROJECTION_KEYWORDS = ["projected", "estimate", "forecast", "projections", "expected to", "estimated", "expected"];
+const PERIOD_KEYWORDS = ["fy2024", "fy2025", "fy2026", "fy2027", "fy 2024", "fy 2025", "fy 2026", "fy 2027"];
+
+function isUnresolvedPeriodSemantics(claimA: string, claimB: string): boolean {
+  const lowerA = claimA.toLowerCase();
+  const lowerB = claimB.toLowerCase();
+  
+  const hasProjA = PROJECTION_KEYWORDS.some(kw => lowerA.includes(kw));
+  const hasProjB = PROJECTION_KEYWORDS.some(kw => lowerB.includes(kw));
+  
+  const hasPeriodA = PERIOD_KEYWORDS.some(kw => lowerA.includes(kw));
+  const hasPeriodB = PERIOD_KEYWORDS.some(kw => lowerB.includes(kw));
+  
+  if ((hasProjA || hasProjB) && (hasPeriodA || hasPeriodB)) {
+    return true;
+  }
+  return false;
+}
+
 export function calculateScores(
   evidenceList: readonly Evidence[],
   contradictionsList: { severity: string; evidenceIdA?: string; evidenceIdB?: string }[],
   isSufficient = true
 ): ResearchScores {
+  // Pre-process evidenceList to identify any self-paired inconsistencies
+  // and reduce confidence of affected items
+  const selfInconsistentIds = new Set<string>();
+  for (const c of contradictionsList) {
+    if (c.evidenceIdA && c.evidenceIdA === c.evidenceIdB) {
+      selfInconsistentIds.add(c.evidenceIdA);
+    }
+  }
+
+  const adjustedEvidenceList = evidenceList.map((e) => {
+    if (selfInconsistentIds.has(e.id)) {
+      const currentConf = typeof e.confidence === "string" ? parseFloat(e.confidence) : Number(e.confidence);
+      const newConf = isNaN(currentConf) ? 0.4 : Math.max(0.1, currentConf * 0.5);
+      logger.info("Scoring: Detected internal claim inconsistency, reducing confidence", {
+        evidenceId: e.id,
+        oldConfidence: currentConf,
+        newConfidence: newConf,
+      });
+      return {
+        ...e,
+        confidence: newConf,
+      };
+    }
+    return e;
+  });
+
   const contributionLedger: ContributionRecord[] = [];
 
   // 1. Calculate per-pillar breakdowns with validity gating
-  const businessResult   = calculateCategoryBreakdown("business",   evidenceList);
-  const financialResult  = calculateCategoryBreakdown("financial",  evidenceList);
-  const valuationResult  = calculateCategoryBreakdown("valuation",  evidenceList);
-  const newsResult       = calculateCategoryBreakdown("news",       evidenceList);
-  const riskResult       = calculateCategoryBreakdown("risk",       evidenceList);
-  const evidenceQualityBreakdown = calculateEvidenceQualityBreakdown(evidenceList);
+  const businessResult   = calculateCategoryBreakdown("business",   adjustedEvidenceList);
+  const financialResult  = calculateCategoryBreakdown("financial",  adjustedEvidenceList);
+  const valuationResult  = calculateCategoryBreakdown("valuation",  adjustedEvidenceList);
+  const newsResult       = calculateCategoryBreakdown("news",       adjustedEvidenceList);
+  const riskResult       = calculateCategoryBreakdown("risk",       adjustedEvidenceList);
+  const evidenceQualityBreakdown = calculateEvidenceQualityBreakdown(adjustedEvidenceList);
 
   // Accumulate ledger from all pillars
   for (const r of [businessResult, financialResult, valuationResult, newsResult, riskResult]) {
@@ -365,22 +410,21 @@ export function calculateScores(
   const riskBreakdown      = riskResult.breakdown;
 
   // 2. Calculate contradiction penalty
-  //
-  // Filters applied (in order):
-  //   A. Cross-category: two items from different evidence categories measure
-  //      different metric dimensions → cannot be direct contradictions.
-  //   B. Immaterial price variance: price-like claims within 2% relative diff
-  //      or < $1 absolute diff → not material.
-  //   C. Temporal mismatch: one short-term, one long-term claim → incomparable.
-  //
-  // All filters are generic — they inspect claim semantics, never ticker identity.
   let contradictionPenalty = 0;
   const filteredContradictions: typeof contradictionsList = [];
-  const evidenceMap = new Map(evidenceList.map((e) => [e.id, e]));
+  const evidenceMap = new Map(adjustedEvidenceList.map((e) => [e.id, e]));
 
   for (const c of contradictionsList) {
     const itemA = c.evidenceIdA ? evidenceMap.get(c.evidenceIdA) : null;
     const itemB = c.evidenceIdB ? evidenceMap.get(c.evidenceIdB) : null;
+
+    // Self-pair rejection check at scoring level
+    if (c.evidenceIdA && c.evidenceIdA === c.evidenceIdB) {
+      logger.info("Scoring Filter: Skipped self-paired contradiction from penalty", {
+        evidenceId: c.evidenceIdA,
+      });
+      continue;
+    }
 
     if (itemA && itemB) {
       // Filter A: Cross-category — different metric families, cannot be direct contradiction
@@ -430,7 +474,17 @@ export function calculateScores(
 
     filteredContradictions.push(c);
 
-    const sev = c.severity.toLowerCase();
+    let sev = c.severity.toLowerCase();
+    
+    // Check for unresolved period/projection semantics and downgrade high severity
+    if (sev === "high" && itemA && itemB && isUnresolvedPeriodSemantics(itemA.claim, itemB.claim)) {
+      logger.info("Scoring: Downgraded high severity contradiction due to unresolved period/projection semantics", {
+        evidenceIdA: itemA.id,
+        evidenceIdB: itemB.id,
+      });
+      sev = "medium";
+    }
+
     if (sev === "high") {
       contradictionPenalty += SCORING_CONFIG.penalties.contradiction.high;
     } else if (sev === "medium") {

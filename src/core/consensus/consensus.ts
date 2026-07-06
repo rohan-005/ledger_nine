@@ -63,15 +63,15 @@ export async function runContradictionDetector(
 
 Evidence list:
 ${evidenceList
-  .map(
-    (e) =>
-      `ID: ${e.id}
+      .map(
+        (e) =>
+          `ID: ${e.id}
 Category: ${e.category}
 Source: ${e.sourceType}
 Claim: ${e.claim}
 Raw Value: ${e.rawValue}`
-  )
-  .join("\n\n")}
+      )
+      .join("\n\n")}
 
 For each contradiction identified, return a JSON object with a "contradictions" key containing an array of objects. Each object in the array must have the following exact keys:
 - "evidenceIdA": ID of the first conflicting evidence item
@@ -100,19 +100,47 @@ If no contradictions are found, return an empty array under the "contradictions"
     const rawContradictions = parsed.contradictions || [];
     const validEvidenceIds = new Set(evidenceList.map((e) => e.id));
 
-    // Filter to ensure referenced evidence IDs exist
-    const contradictionsToInsert = rawContradictions
-      .filter((c) => validEvidenceIds.has(c.evidenceIdA) && validEvidenceIds.has(c.evidenceIdB))
-      .map((c) => ({
-        id: generateId("ct"),
-        researchId,
-        evidenceIdA: c.evidenceIdA,
-        evidenceIdB: c.evidenceIdB,
-        description: c.description,
-        severity: c.severity,
-        confidence: String(Math.max(0, Math.min(1, c.confidence || 0.8))),
-        createdAt: new Date(),
-      }));
+    const seenPairs = new Set<string>();
+    const uniqueContradictions: typeof rawContradictions = [];
+
+    for (const c of rawContradictions) {
+      if (!c.evidenceIdA || !c.evidenceIdB) continue;
+      // 1. Ensure referenced evidence IDs exist
+      if (!validEvidenceIds.has(c.evidenceIdA) || !validEvidenceIds.has(c.evidenceIdB)) {
+        continue;
+      }
+      // 2. Reject self-pairs (evidenceIdA === evidenceIdB)
+      if (c.evidenceIdA === c.evidenceIdB) {
+        logger.info("Contradiction detection: Rejected self-paired contradiction", {
+          evidenceId: c.evidenceIdA,
+          description: c.description,
+        });
+        continue;
+      }
+      // 3. Deduplicate / Canonicalize: A-vs-B is equivalent to B-vs-A
+      const sortedIds = [c.evidenceIdA, c.evidenceIdB].sort();
+      const pairKey = `${sortedIds[0]}:${sortedIds[1]}`;
+      if (seenPairs.has(pairKey)) {
+        logger.info("Contradiction detection: Rejected duplicate contradiction pair", {
+          evidenceIdA: c.evidenceIdA,
+          evidenceIdB: c.evidenceIdB,
+        });
+        continue;
+      }
+      seenPairs.add(pairKey);
+      uniqueContradictions.push(c);
+    }
+
+    const contradictionsToInsert = uniqueContradictions.map((c) => ({
+      id: generateId("ct"),
+      researchId,
+      evidenceIdA: c.evidenceIdA,
+      evidenceIdB: c.evidenceIdB,
+      description: c.description,
+      severity: c.severity,
+      confidence: String(Math.max(0, Math.min(1, c.confidence || 0.8))),
+      createdAt: new Date(),
+    }));
 
     if (contradictionsToInsert.length > 0) {
       return await contradictionRepository.insertContradictions(contradictionsToInsert);
@@ -124,24 +152,53 @@ If no contradictions are found, return an empty array under the "contradictions"
   }
 }
 
+function neutralizeNarrative(text: string, decision: string, finalScore: string | number | null): string {
+  if (decision !== "PASS") return text;
+  let neutralized = text;
+  // Neutralize common positive recommendation phrases
+  const replacements = [
+    { regex: /is a compelling investment opportunity/gi, replacement: "presents notable risks, making the deterministic PASS decision authoritative" },
+    { regex: /presents a compelling investment opportunity/gi, replacement: "presents notable risks, making the deterministic PASS decision authoritative" },
+    { regex: /is a compelling long-term holding/gi, replacement: "requires caution, making the deterministic PASS decision authoritative" },
+    { regex: /makes it a compelling buy/gi, replacement: "does not warrant an investment at this time, making the deterministic PASS decision authoritative" },
+    { regex: /compelling buy/gi, replacement: "non-investment grade case" },
+    { regex: /compelling investment/gi, replacement: "neutral investment case" },
+  ];
+  for (const r of replacements) {
+    neutralized = neutralized.replace(r.regex, r.replacement);
+  }
+  // Ensure it explicitly states the deterministic action is authoritative
+  const hasAuthoritative = /authoritative/i.test(neutralized) || /deterministic/i.test(neutralized);
+  if (!hasAuthoritative) {
+    neutralized += ` (Note: The deterministic PASS decision is authoritative due to a final score of ${finalScore ?? "N/A"}).`;
+  }
+  return neutralized;
+}
+
 export async function synthesizeResearchReport(
   researchId: string,
   ticker: string,
   evidenceList: readonly Evidence[],
   scores: ResearchScores
 ) {
+  let decisionInstruction = "";
+  if (scores.decision === "PASS") {
+    decisionInstruction = `\nCRITICAL INSTRUCTION: The deterministic decision for this asset is PASS (Final Score: ${scores.final}). The narrative must NOT recommend this asset as a buy or compelling investment. Neutralize any recommendation language, focus on objective evidence synthesis, and state that the deterministic PASS action is authoritative due to identified risks or score thresholds.`;
+  }
+
   const prompt = `You are a Lead Investment Analyst at a premium hedge fund. Synthesize a professional, institutional-grade research report for ticker ${ticker} based on the collected evidence and calculated category scores.
+${decisionInstruction}
 
 Evidence Pool:
 ${evidenceList
-  .map(
-    (e) =>
-      `Category: ${e.category}
+      .map(
+        (e) =>
+          `Category: ${e.category}
 Source: ${e.sourceType}
 Claim: ${e.claim}
 Raw Value: ${e.rawValue}`
-  )
-  .join("\n\n")}
+      )
+      .join("\n\n")}
 
 Calculated Scores & Recommendation:
 - Business Score: ${scores.business}
@@ -208,14 +265,17 @@ Based on the evidence pool and scores, generate a JSON object with the following
         summary: string;
       };
 
+      const finalDecision = scores.decision || "PASS";
+      const finalScoreVal = scores.final || "0";
+
       const reportData = {
         id: generateId("rep"),
         researchId,
-        thesis: parsed.thesis || "No thesis provided.",
+        thesis: neutralizeNarrative(parsed.thesis || "No thesis provided.", finalDecision, finalScoreVal),
         bullCase: JSON.stringify(parsed.bullCase || []),
         bearCase: JSON.stringify(parsed.bearCase || []),
         keyRisks: JSON.stringify(parsed.keyRisks || []),
-        summary: parsed.summary || "No summary provided.",
+        summary: neutralizeNarrative(parsed.summary || "No summary provided.", finalDecision, finalScoreVal),
         createdAt: new Date(),
       };
 

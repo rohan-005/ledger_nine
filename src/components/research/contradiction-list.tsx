@@ -56,9 +56,57 @@ export default function ContradictionList({
       ) : (
         <div className="space-y-4">
           {contradictions.map((ct) => {
+            const isInternalInconsistency = ct.evidenceIdA === ct.evidenceIdB;
             const evA = evidenceMap.get(ct.evidenceIdA);
-            const evB = evidenceMap.get(ct.evidenceIdB);
+            const evB = isInternalInconsistency ? null : evidenceMap.get(ct.evidenceIdB);
             const conf = parseFloat(ct.confidence);
+
+            if (isInternalInconsistency) {
+              return (
+                <Card key={ct.id} className="bg-white border border-border p-6 space-y-4">
+                  <div className="flex items-start justify-between gap-4 flex-wrap pb-3 border-b border-border/60">
+                    <div className="space-y-1 flex-1">
+                      <p className="text-sm font-bold text-foreground leading-relaxed">
+                        {ct.description}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold border border-amber-200 bg-amber-50 text-amber-700">
+                        Internal Data Inconsistency
+                      </span>
+                      <SeverityBadge severity={ct.severity} />
+                      <span className="text-xs text-foreground-secondary font-mono font-semibold">
+                        Audit confidence: {isNaN(conf) ? "—" : (conf * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-background rounded-xl border border-border p-4 space-y-2">
+                    <div className="space-y-1">
+                      <span className="inline-block text-[10px] font-bold text-foreground-secondary uppercase tracking-wider">
+                        Inconsistent Evidence Item
+                      </span>
+                      {evA ? (
+                        <p className="text-xs font-semibold text-foreground leading-relaxed">
+                          "{evA.claim}"
+                        </p>
+                      ) : (
+                        <p className="text-xs font-mono text-foreground-muted">
+                          Evidence ID: {ct.evidenceIdA} (Not found in filtered list)
+                        </p>
+                      )}
+                    </div>
+                    
+                    {evA && (
+                      <div className="flex items-center justify-between border-t border-border/50 pt-2 text-[10px] text-foreground-muted font-mono">
+                        <span>Source: {getFriendlySourceName(evA.sourceType)}</span>
+                        <span>Agent: {evA.agentId}</span>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            }
 
             return (
               <Card key={ct.id} className="bg-white border border-border p-6 space-y-4">
@@ -78,11 +126,11 @@ export default function ContradictionList({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    { label: "Claim A", ev: evA, id: ct.evidenceIdA },
-                    { label: "Claim B", ev: evB, id: ct.evidenceIdB },
-                  ].map(({ label, ev, id }) => (
+                    { label: "Claim A", ev: evA, id: ct.evidenceIdA, side: "A" as const },
+                    { label: "Claim B", ev: evB, id: ct.evidenceIdB, side: "B" as const },
+                  ].map(({ label, ev, id, side }) => (
                     <div
-                      key={id}
+                      key={`${ct.id}:${side}:${id}`}
                       className="bg-background rounded-xl border border-border p-4 space-y-2 flex flex-col justify-between"
                     >
                       <div className="space-y-1">
