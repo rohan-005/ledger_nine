@@ -163,6 +163,12 @@ function neutralizeNarrative(text: string, decision: string, finalScore: string 
     { regex: /makes it a compelling buy/gi, replacement: "does not warrant an investment at this time, making the deterministic PASS decision authoritative" },
     { regex: /compelling buy/gi, replacement: "non-investment grade case" },
     { regex: /compelling investment/gi, replacement: "neutral investment case" },
+    { regex: /strong buy/gi, replacement: "neutral rating" },
+    { regex: /excellent opportunity/gi, replacement: "neutral opportunity" },
+    { regex: /highly recommend/gi, replacement: "advise caution" },
+    { regex: /great buy/gi, replacement: "caution recommended" },
+    { regex: /must buy/gi, replacement: "caution recommended" },
+    { regex: /should invest/gi, replacement: "caution is warranted" },
   ];
   for (const r of replacements) {
     neutralized = neutralized.replace(r.regex, r.replacement);
