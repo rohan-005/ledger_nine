@@ -17,6 +17,19 @@ export const SCORING_CONFIG = {
       medium: 7,
       low: 2,
     },
+    /**
+     * Global ceiling on the total contradiction penalty applied to any run.
+     *
+     * Rationale: The score scale is 0..100. A ceiling of 25 means that
+     * even if the LLM contradiction detector flags many pairs as "high"
+     * severity, the total deduction is bounded at 25% of the scale.
+     * This prevents compound or hallucinated contradictions from
+     * eliminating a valid partial evidence signal entirely.
+     *
+     * This value is derived from scale semantics only — it is NOT chosen
+     * to improve or repair any specific company's score.
+     */
+    maxContradictionPenalty: 25,
   },
   sourceQuality: {
     sec: 1.00,
@@ -25,4 +38,17 @@ export const SCORING_CONFIG = {
     alpha_vantage: 0.75,
     llm_inference: 0.35,
   },
+  /**
+   * Evidence validity: normalizedValue range.
+   *
+   * Any normalizedValue whose absolute value exceeds this threshold is
+   * considered to be a raw metric (e.g. a PE ratio, revenue in billions)
+   * rather than a 0-100 score and is excluded from the weighted average.
+   *
+   * Items excluded on this basis are recorded in the contribution ledger
+   * with validityState = "excluded_range". They are NOT silently mapped
+   * to the neutral baseline (50).
+   */
+  normalizedValueMaxRange: 1000,
 };
+
