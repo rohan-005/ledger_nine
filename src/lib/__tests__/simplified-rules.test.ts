@@ -6,15 +6,12 @@ import { EvidenceItem, AgentRun } from "@/src/types/frontend";
 describe("Simplified Research Pipeline Offline Tests (Exactly 20 Tests)", () => {
   // --- SUFFICIENCY GATE TESTS (Tests 1 to 7) ---
 
-  it("Test 1: Sufficiency Gate - passes exactly at or above 50% coverage", () => {
-    // 2/4 agents = 0.5 ratio -> 50% * 0.5 = 0.25
-    // 3/5 categories = 0.6 ratio -> 30% * 0.6 = 0.18
-    // 2/4 source types = 0.5 ratio -> 20% * 0.5 = 0.10
-    // Total coverage score = 0.25 + 0.18 + 0.10 = 0.53 >= 0.50
+  it("Test 1: Sufficiency Gate - passes with 3 financial periods and at least one additional category", () => {
     const evidence: EvidenceItem[] = [
-      { id: "e1", category: "business", sourceType: "fmp" } as any,
-      { id: "e2", category: "financial", sourceType: "sec" } as any,
-      { id: "e3", category: "valuation", sourceType: "sec" } as any,
+      { id: "e1", category: "financial", sourceType: "fmp" } as any,
+      { id: "e2", category: "financial", sourceType: "fmp" } as any,
+      { id: "e3", category: "financial", sourceType: "fmp" } as any,
+      { id: "e4", category: "valuation", sourceType: "sec" } as any,
     ];
     const agentRuns: AgentRun[] = [
       { agentId: "financial", status: "completed" } as any,
@@ -25,18 +22,14 @@ describe("Simplified Research Pipeline Offline Tests (Exactly 20 Tests)", () => 
     expect(res.outcome).toBe("sufficient");
   });
 
-  it("Test 2: Sufficiency Gate - fails when coverage is below 50%", () => {
-    // 2/4 agents = 0.5 ratio -> 50% * 0.5 = 0.25
-    // 1/5 categories = 0.2 ratio -> 30% * 0.2 = 0.06
-    // 2/4 source types = 0.5 ratio -> 20% * 0.5 = 0.10
-    // Total coverage score = 0.25 + 0.06 + 0.10 = 0.41 < 0.50
+  it("Test 2: Sufficiency Gate - fails when additional data is missing", () => {
     const evidence: EvidenceItem[] = [
-      { id: "e1", category: "business", sourceType: "fmp" } as any,
-      { id: "e2", category: "business", sourceType: "sec" } as any,
+      { id: "e1", category: "financial", sourceType: "fmp" } as any,
+      { id: "e2", category: "financial", sourceType: "fmp" } as any,
+      { id: "e3", category: "financial", sourceType: "fmp" } as any,
     ];
     const agentRuns: AgentRun[] = [
       { agentId: "financial", status: "completed" } as any,
-      { agentId: "sec", status: "completed" } as any,
     ];
     const res = checkSufficiency(evidence, agentRuns, false);
     expect(res.sufficient).toBe(false);
@@ -44,13 +37,11 @@ describe("Simplified Research Pipeline Offline Tests (Exactly 20 Tests)", () => 
     expect(res.reasons).toContain("INSUFFICIENT_COVERAGE_SCORE");
   });
 
-  it("Test 3: Sufficiency Gate - fails when fewer than 2 specialist agents complete", () => {
+  it("Test 3: Sufficiency Gate - fails when fewer than 3 financial periods are available", () => {
     const evidence: EvidenceItem[] = [
-      { id: "e1", category: "business", sourceType: "fmp" } as any,
-      { id: "e2", category: "financial", sourceType: "sec" } as any,
+      { id: "e1", category: "financial", sourceType: "fmp" } as any,
+      { id: "e2", category: "financial", sourceType: "fmp" } as any,
       { id: "e3", category: "valuation", sourceType: "sec" } as any,
-      { id: "e4", category: "news", sourceType: "tavily" } as any,
-      { id: "e5", category: "risk", sourceType: "alpha_vantage" } as any,
     ];
     const agentRuns: AgentRun[] = [
       { agentId: "financial", status: "completed" } as any,
@@ -60,66 +51,59 @@ describe("Simplified Research Pipeline Offline Tests (Exactly 20 Tests)", () => 
     expect(res.reasons).toContain("INSUFFICIENT_SPECIALIST_COVERAGE");
   });
 
-  it("Test 4: Sufficiency Gate - passes when exactly 2 specialist agents complete", () => {
+  it("Test 4: Sufficiency Gate - passes when exactly 3 financial periods and news are present", () => {
     const evidence: EvidenceItem[] = [
-      { id: "e1", category: "business", sourceType: "fmp" } as any,
-      { id: "e2", category: "financial", sourceType: "sec" } as any,
-      { id: "e3", category: "valuation", sourceType: "sec" } as any,
-      { id: "e4", category: "news", sourceType: "tavily" } as any,
-      { id: "e5", category: "risk", sourceType: "alpha_vantage" } as any,
-    ];
-    const agentRuns: AgentRun[] = [
-      { agentId: "financial", status: "completed" } as any,
-      { agentId: "sec", status: "completed" } as any,
-    ];
-    const res = checkSufficiency(evidence, agentRuns, false);
-    expect(res.sufficient).toBe(true);
-  });
-
-  it("Test 5: Sufficiency Gate - fails when fewer than 2 unique source types are present", () => {
-    const evidence: EvidenceItem[] = [
-      { id: "e1", category: "business", sourceType: "fmp" } as any,
+      { id: "e1", category: "financial", sourceType: "fmp" } as any,
       { id: "e2", category: "financial", sourceType: "fmp" } as any,
-      { id: "e3", category: "valuation", sourceType: "fmp" } as any,
-      { id: "e4", category: "news", sourceType: "fmp" } as any,
-      { id: "e5", category: "risk", sourceType: "fmp" } as any,
+      { id: "e3", category: "financial", sourceType: "fmp" } as any,
+      { id: "e4", category: "news", sourceType: "tavily" } as any,
     ];
     const agentRuns: AgentRun[] = [
       { agentId: "financial", status: "completed" } as any,
       { agentId: "macro", status: "completed" } as any,
     ];
     const res = checkSufficiency(evidence, agentRuns, false);
-    expect(res.sufficient).toBe(false);
-    expect(res.reasons).toContain("INSUFFICIENT_SOURCE_DIVERSITY");
+    expect(res.sufficient).toBe(true);
   });
 
-  it("Test 6: Sufficiency Gate - passes when exactly 2 unique source types are present", () => {
+  it("Test 5: Sufficiency Gate - passes even with 1 unique source type if financial and valuation are present", () => {
     const evidence: EvidenceItem[] = [
-      { id: "e1", category: "business", sourceType: "fmp" } as any,
-      { id: "e2", category: "financial", sourceType: "sec" } as any,
-      { id: "e3", category: "valuation", sourceType: "sec" } as any,
-      { id: "e4", category: "news", sourceType: "fmp" } as any,
-      { id: "e5", category: "risk", sourceType: "sec" } as any,
+      { id: "e1", category: "financial", sourceType: "fmp" } as any,
+      { id: "e2", category: "financial", sourceType: "fmp" } as any,
+      { id: "e3", category: "financial", sourceType: "fmp" } as any,
+      { id: "e4", category: "valuation", sourceType: "fmp", claim: "Market Quote: price is $100" } as any,
     ];
     const agentRuns: AgentRun[] = [
       { agentId: "financial", status: "completed" } as any,
-      { agentId: "sec", status: "completed" } as any,
     ];
     const res = checkSufficiency(evidence, agentRuns, false);
     expect(res.sufficient).toBe(true);
   });
 
-  it("Test 7: Sufficiency Gate - missing regulatory filings (SEC) for US assets does not block if overall coverage is sufficient", () => {
+  it("Test 6: Sufficiency Gate - passes when mixed sources (e.g. FMP and Tavily) are present", () => {
     const evidence: EvidenceItem[] = [
-      { id: "e1", category: "business", sourceType: "fmp" } as any,
+      { id: "e1", category: "financial", sourceType: "fmp" } as any,
       { id: "e2", category: "financial", sourceType: "fmp" } as any,
-      { id: "e3", category: "valuation", sourceType: "fmp" } as any,
+      { id: "e3", category: "financial", sourceType: "fmp" } as any,
       { id: "e4", category: "news", sourceType: "tavily" } as any,
-      { id: "e5", category: "risk", sourceType: "tavily" } as any,
     ];
     const agentRuns: AgentRun[] = [
       { agentId: "financial", status: "completed" } as any,
       { agentId: "macro", status: "completed" } as any,
+    ];
+    const res = checkSufficiency(evidence, agentRuns, false);
+    expect(res.sufficient).toBe(true);
+  });
+
+  it("Test 7: Sufficiency Gate - missing regulatory filings (SEC) for US assets does not block if financial and valuation are present", () => {
+    const evidence: EvidenceItem[] = [
+      { id: "e1", category: "financial", sourceType: "fmp" } as any,
+      { id: "e2", category: "financial", sourceType: "fmp" } as any,
+      { id: "e3", category: "financial", sourceType: "fmp" } as any,
+      { id: "e4", category: "valuation", sourceType: "fmp" } as any,
+    ];
+    const agentRuns: AgentRun[] = [
+      { agentId: "financial", status: "completed" } as any,
     ];
     const res = checkSufficiency(evidence, agentRuns, true); // true = isUSAsset
     expect(res.sufficient).toBe(true);

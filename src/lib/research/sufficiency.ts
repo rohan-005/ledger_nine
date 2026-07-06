@@ -11,6 +11,7 @@ interface EvidenceLike {
   id: string;
   category: string;
   sourceType: string;
+  claim: string;
 }
 
 interface AgentRunLike {
@@ -19,10 +20,12 @@ interface AgentRunLike {
   errorMessage: string | null;
 }
 
-export const MIN_RESEARCH_COVERAGE = 0.50;
-
 /**
  * Assesses whether the gathered evidence is sufficient to compile a valid scoring and investment verdict.
+ * New gate eligibility rules:
+ * A. Company identity is resolved (assumed true if we reach here)
+ * B. At least 3 annual financial periods are available (financialCount >= 3)
+ * C. At least one of: valuation data, market data, recent news, targeted web research.
  */
 export function checkSufficiency(
   evidenceList: readonly EvidenceLike[],
@@ -32,50 +35,30 @@ export function checkSufficiency(
   const reasons: string[] = [];
   const limitations: string[] = [];
 
-  // 1. Calculate successful research area ratio
-  const completedAgents = agentRuns.filter(
-    (r) => r.status === "completed" && ["financial", "sec", "macro", "earnings"].includes(r.agentId)
-  );
-  const completedAreasCount = completedAgents.length;
-  const successfulResearchAreaRatio = completedAreasCount / 4.0;
-
-  // 2. Calculate evidence category coverage ratio (5 categories: business, financial, valuation, news, risk)
   const financialCount = evidenceList.filter((e) => e.category === "financial").length;
   const businessCount = evidenceList.filter((e) => e.category === "business").length;
   const valuationCount = evidenceList.filter((e) => e.category === "valuation").length;
   const newsCount = evidenceList.filter((e) => e.category === "news").length;
   const riskCount = evidenceList.filter((e) => e.category === "risk").length;
 
-  const categoriesWithEvidence = [
-    financialCount > 0,
-    businessCount > 0,
-    valuationCount > 0,
-    newsCount > 0,
-    riskCount > 0,
-  ].filter(Boolean).length;
-  const evidenceCategoryCoverageRatio = categoriesWithEvidence / 5.0;
-
-  // 3. Calculate source diversity ratio (4 source groups: fmp, sec, tavily, alpha_vantage)
-  const uniqueSources = new Set(
-    evidenceList
-      .map((e) => e.sourceType.toLowerCase())
-      .filter((s) => ["sec", "fmp", "tavily", "alpha_vantage"].includes(s))
+  const hasFinancials = financialCount >= 3;
+  const hasValuation = valuationCount > 0;
+  const hasMarketData = evidenceList.some((e) => 
+    e.claim?.toLowerCase().includes("market quote") || 
+    e.claim?.toLowerCase().includes("share price") || 
+    e.claim?.toLowerCase().includes("price of") ||
+    e.claim?.toLowerCase().includes("quote")
   );
-  const sourceDiversityRatio = uniqueSources.size / 4.0;
+  const hasNews = newsCount > 0;
+  const hasWebResearch = businessCount > 0 || riskCount > 0 || evidenceList.some(e => e.category === "competitor");
 
-  // 4. Calculate coverage score
-  const coverage = 0.5 * successfulResearchAreaRatio + 0.3 * evidenceCategoryCoverageRatio + 0.2 * sourceDiversityRatio;
+  const hasAdditionalData = hasValuation || hasMarketData || hasNews || hasWebResearch;
 
-  // 5. Enforce sufficiency rules
-  if (completedAreasCount < 2) {
+  if (!hasFinancials) {
     reasons.push("INSUFFICIENT_SPECIALIST_COVERAGE");
   }
 
-  if (uniqueSources.size < 2) {
-    reasons.push("INSUFFICIENT_SOURCE_DIVERSITY");
-  }
-
-  if (coverage < MIN_RESEARCH_COVERAGE) {
+  if (!hasAdditionalData) {
     reasons.push("INSUFFICIENT_COVERAGE_SCORE");
   }
 
@@ -90,7 +73,7 @@ export function checkSufficiency(
     outcome = isNetworkError ? "provider_failure" : "insufficient_evidence";
   }
 
-  // 6. Gather research limitations
+  // Gather research limitations
   const secRun = agentRuns.find((r) => r.agentId === "sec");
   const macroRun = agentRuns.find((r) => r.agentId === "macro");
   const earningsRun = agentRuns.find((r) => r.agentId === "earnings");
