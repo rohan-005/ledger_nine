@@ -7,6 +7,7 @@ import {
   eodhdProvider,
   newsApiProvider,
   tavilyProvider,
+  alphaVantageProvider,
   EndpointResult,
   ProviderSummary,
   ProviderEndpointStatus,
@@ -74,8 +75,8 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
   const candidates = getProviderCandidates(company);
 
   // 1. Sequentially resolve symbol candidates for each provider in parallel.
-  // We run candidate resolution for FMP, Finnhub, Twelve Data, EODHD in parallel.
-  const [fmpResolution, finnhubResolution, twelveDataResolution, eodhdResolution] = await Promise.all([
+  // We run candidate resolution for FMP, Finnhub, Twelve Data, EODHD, Alpha Vantage in parallel.
+  const [fmpResolution, finnhubResolution, twelveDataResolution, eodhdResolution, alphaVantageResolution] = await Promise.all([
     resolveSymbolAndVerify("FMP", candidates.fmp, (cand, tried) =>
       fmpProvider.getProfile(cand, tried)
     ),
@@ -88,6 +89,9 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     resolveSymbolAndVerify("EODHD", candidates.eodhd, (cand, tried) =>
       eodhdProvider.getQuote(cand, tried)
     ),
+    resolveSymbolAndVerify("Alpha Vantage", candidates.alphaVantage, (cand, tried) =>
+      alphaVantageProvider.getQuote(cand, tried)
+    ),
   ]);
 
   // Store resolved symbols
@@ -95,6 +99,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
   const finnhubSymbol = finnhubResolution.resolvedSymbol;
   const twelveDataSymbol = twelveDataResolution.resolvedSymbol;
   const eodhdSymbol = eodhdResolution.resolvedSymbol;
+  const alphaVantageSymbol = alphaVantageResolution.resolvedSymbol;
 
   // Collect the validation results to output them
   const initialEndpoints: EndpointResult[] = [];
@@ -102,6 +107,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
   if (finnhubResolution.verifiedResult) initialEndpoints.push(finnhubResolution.verifiedResult);
   if (twelveDataResolution.verifiedResult) initialEndpoints.push(twelveDataResolution.verifiedResult);
   if (eodhdResolution.verifiedResult) initialEndpoints.push(eodhdResolution.verifiedResult);
+  if (alphaVantageResolution.verifiedResult) initialEndpoints.push(alphaVantageResolution.verifiedResult);
 
   // 2. Prepare remaining symbol-dependent endpoint tasks
   const pendingTasks: Promise<EndpointResult | EndpointResult[]>[] = [];
@@ -137,6 +143,11 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     pendingTasks.push(eodhdProvider.getFundamentals(eodhdSymbol));
   }
 
+  // Alpha Vantage remaining tasks (1 endpoint)
+  if (alphaVantageSymbol) {
+    pendingTasks.push(alphaVantageProvider.getTimeSeries(alphaVantageSymbol));
+  }
+
   // NewsAPI task (query-based)
   pendingTasks.push(newsApiProvider.getRecentArticles(company.name));
 
@@ -164,7 +175,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
   const allEndpoints = [...initialEndpoints, ...additionalEndpoints];
 
   // 4. Construct provider summaries
-  const providerNames = ["FMP", "Finnhub", "Twelve Data", "EODHD", "NewsAPI", "Tavily"];
+  const providerNames = ["FMP", "Finnhub", "Twelve Data", "EODHD", "NewsAPI", "Tavily", "Alpha Vantage"];
   const providersSummary: ProviderSummary[] = providerNames.map((p) => {
     const endpoints = allEndpoints.filter((e) => e.provider === p);
     const successCount = endpoints.filter((e) => e.ok).length;
@@ -179,6 +190,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     } else {
       const rateLimits = endpoints.filter((e) => e.status === "rate_limit");
       const authErrors = endpoints.filter((e) => e.status === "auth_error");
+      const planLimits = endpoints.filter((e) => e.status === "plan_limited");
       const timeouts = endpoints.filter((e) => e.status === "timeout");
       const networkErrors = endpoints.filter((e) => e.status === "network_error");
       const unsupported = endpoints.filter((e) => e.status === "unsupported");
@@ -187,6 +199,8 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
         status = "rate_limit";
       } else if (authErrors.length > 0) {
         status = "auth_error";
+      } else if (planLimits.length > 0) {
+        status = "plan_limited";
       } else if (successCount === 0) {
         if (unsupported.length > 0) status = "unsupported";
         else if (timeouts.length > 0) status = "timeout";
@@ -214,6 +228,9 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     } else if (p === "EODHD") {
       symbolUsed = eodhdSymbol;
       tried = eodhdResolution.tried;
+    } else if (p === "Alpha Vantage") {
+      symbolUsed = alphaVantageSymbol;
+      tried = alphaVantageResolution.tried;
     }
 
     return {

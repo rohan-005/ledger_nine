@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runDiagnosticsPipeline } from "@/src/lib/research/fetchAllProviders";
+import { buildEvidenceBundle } from "@/src/lib/research/buildEvidenceBundle";
+import { runCompanyAnalysis } from "@/src/lib/research/llmAnalysis";
+import { runAllProviderHealthChecks } from "@/src/lib/providers/healthCheck";
 import { CURATED_COMPANIES } from "@/src/data/curatedCompanies";
 import { logger } from "@/src/lib/logger";
 
@@ -9,6 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     let company = body.company;
+    const simulate = body.simulate; // { gemini?: string, groq?: string }
 
     if (!company && body.ticker) {
       const tickerLower = body.ticker.toLowerCase();
@@ -61,9 +65,26 @@ export async function POST(req: NextRequest) {
       isin: company.isin ? String(company.isin) : null,
     };
 
+    // 1. Run multi-provider diagnostics pipeline
     const diagnostics = await runDiagnosticsPipeline(companyIdentity);
 
-    return NextResponse.json(diagnostics);
+    // 2. Fetch or load cached provider health status mapping
+    const health = await runAllProviderHealthChecks(false);
+
+    // 3. Build structured evidence bundle
+    const evidenceBundle = buildEvidenceBundle(companyIdentity, diagnostics.allEndpoints, health.statusMap);
+
+    // 4. Run LLM Analysis fallback chain (Gemini -> Groq -> Deterministic fallback)
+    const analysisRunResult = await runCompanyAnalysis(evidenceBundle, simulate);
+
+    // Combine everything into a single diagnostic response contract
+    const responsePayload = {
+      ...diagnostics,
+      evidenceBundle,
+      analysisRunResult,
+    };
+
+    return NextResponse.json(responsePayload);
   } catch (error: any) {
     logger.error("Fetch API Route: Failed to execute diagnostics", { error: error.message });
     return NextResponse.json({ error: "Failed to run diagnostics: " + error.message }, { status: 500 });

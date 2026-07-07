@@ -128,20 +128,27 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
       status = mapErrorStatus(httpStatus, msg, rawData);
       
       let finalMsg = msg;
-      if (status === "rate_limit") {
+      if (status === "plan_limited") {
+        finalMsg = `Plan limitation reached for ${options.provider}`;
+      } else if (status === "rate_limit") {
         finalMsg = `API limit reached for ${options.provider}`;
       } else if (status === "auth_error") {
         finalMsg = `Authentication failed: ${options.provider}`;
       }
 
       errorObj = {
-        code: `HTTP_${httpStatus || "PARSE_ERROR"}`,
+        code: status === "plan_limited" ? "PLAN_LIMITED" : `HTTP_${httpStatus || "PARSE_ERROR"}`,
         message: redactSecrets(finalMsg),
       };
     } else {
       // Successful response but could still be a rate limit / paywall returned inside JSON (e.g. Twelve Data, EODHD)
       status = mapErrorStatus(httpStatus, "", rawData);
-      if (status === "rate_limit") {
+      if (status === "plan_limited") {
+        errorObj = {
+          code: "PLAN_LIMITED",
+          message: `Plan limitation reached for ${options.provider}`,
+        };
+      } else if (status === "rate_limit") {
         errorObj = {
           code: "RATE_LIMIT",
           message: `API limit reached for ${options.provider}`,

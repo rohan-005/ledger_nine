@@ -13,6 +13,7 @@ export interface ProviderCandidates {
   finnhub: string[];
   twelveData: string[];
   eodhd: string[];
+  alphaVantage: string[];
 }
 
 /**
@@ -86,6 +87,25 @@ export function getProviderCandidates(company: CompanyIdentity): ProviderCandida
     eodhd.push(display);
   }
 
+  // Alpha Vantage Candidates
+  const alphaVantage: string[] = [];
+  if (isIndia) {
+    if (exchange === "BSE") {
+      alphaVantage.push(`${display}.BSE`);
+      alphaVantage.push(`${display}.BO`);
+      alphaVantage.push(canonical);
+    } else {
+      alphaVantage.push(`${display}.NSE`);
+      alphaVantage.push(`${display}.NS`);
+      alphaVantage.push(canonical);
+      alphaVantage.push(`${display}.BSE`);
+      alphaVantage.push(`${display}.BO`);
+    }
+  } else {
+    alphaVantage.push(canonical);
+    alphaVantage.push(display);
+  }
+
   // Deduplicate and filter out empty strings
   const cleanList = (list: string[]) =>
     Array.from(new Set(list.map((s) => s.trim().toUpperCase()).filter(Boolean)));
@@ -95,5 +115,6 @@ export function getProviderCandidates(company: CompanyIdentity): ProviderCandida
     finnhub: cleanList(finnhub),
     twelveData: cleanList(twelveData),
     eodhd: cleanList(eodhd),
+    alphaVantage: cleanList(alphaVantage),
   };
 }

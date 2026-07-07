@@ -12,29 +12,61 @@ export function mapErrorStatus(
   const errLower = errorMessage.toLowerCase();
   const dataString = data ? JSON.stringify(data).toLowerCase() : "";
 
-  // 1. Check for Rate Limit indicators (HTTP 429 or status/error message details)
+  // 1. Check for Plan Limitations (HTTP 402, or specific plan messages on 403 / 200 / etc.)
+  if (
+    httpStatus === 402 ||
+    errLower.includes("upgrade your plan") ||
+    errLower.includes("upgrade plan") ||
+    errLower.includes("subscription") ||
+    errLower.includes("plan limit") ||
+    errLower.includes("special endpoint") ||
+    errLower.includes("restricted endpoint") ||
+    errLower.includes("not authorized for this endpoint") ||
+    errLower.includes("premium endpoint") ||
+    errLower.includes("paywall") ||
+    errLower.includes("starter plan") ||
+    errLower.includes("developer plan") ||
+    errLower.includes("upgrade subscription") ||
+    dataString.includes("upgrade your plan") ||
+    dataString.includes("upgrade plan") ||
+    dataString.includes("subscription") ||
+    dataString.includes("plan limit") ||
+    dataString.includes("special endpoint") ||
+    dataString.includes("restricted endpoint") ||
+    dataString.includes("not authorized for this endpoint") ||
+    dataString.includes("premium endpoint") ||
+    dataString.includes("paywall") ||
+    dataString.includes("starter plan") ||
+    dataString.includes("developer plan") ||
+    dataString.includes("upgrade subscription")
+  ) {
+    return "plan_limited";
+  }
+
+  // 2. Check for Rate Limit indicators (HTTP 429 or status/error message details)
   if (
     httpStatus === 429 ||
-    httpStatus === 402 || // FMP paywall is treated as a plan limit / rate limit or auth depending on context, let's classify 402/429 under limit
     errLower.includes("rate limit") ||
     errLower.includes("quota exceeded") ||
     errLower.includes("too many requests") ||
     errLower.includes("resource exhausted") ||
     errLower.includes("daily limit reached") ||
-    errLower.includes("subscription") ||
-    errLower.includes("upgrade your plan") ||
+    errLower.includes("seconds") ||
+    errLower.includes("minute") ||
+    errLower.includes("request limit") ||
     dataString.includes("rate limit") ||
     dataString.includes("quota exceeded") ||
     dataString.includes("too many requests") ||
     dataString.includes("resource exhausted") ||
     dataString.includes("daily limit reached") ||
-    dataString.includes("subscription") ||
-    dataString.includes("upgrade your plan")
+    dataString.includes("seconds") ||
+    dataString.includes("minute") ||
+    dataString.includes("request limit")
   ) {
     return "rate_limit";
   }
 
-  // 2. Check for Auth Error indicators (HTTP 401, 403 or key/token messages)
+  // 3. Check for Auth Error indicators (HTTP 401, 403 or key/token messages)
   if (
     httpStatus === 401 ||
     httpStatus === 403 ||

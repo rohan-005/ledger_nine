@@ -45,6 +45,12 @@ describe("Diagnostics Pipeline Integration Tests", () => {
         rawData = { symbol: "AAPL", price: "150" };
       } else if (options.provider === "EODHD") {
         rawData = { code: "AAPL", close: 150 };
+      } else if (options.provider === "Alpha Vantage") {
+        if (options.endpointName === "Quote") {
+          rawData = { "Global Quote": { "01. symbol": "AAPL", "05. price": "150" } };
+        } else {
+          rawData = { "Time Series (Daily)": { "2026-07-06": { "4. close": "150" } } };
+        }
       }
 
       return {
@@ -77,7 +83,7 @@ describe("Diagnostics Pipeline Integration Tests", () => {
 
     // Verify overall status and structure
     expect(res.overallStatus).toBe("success");
-    expect(res.providers).toHaveLength(6);
+    expect(res.providers).toHaveLength(7);
     expect(res.allEndpoints.length).toBeGreaterThan(5);
 
     // Check FMP symbol resolved
@@ -112,6 +118,12 @@ describe("Diagnostics Pipeline Integration Tests", () => {
           rawData = { symbol: "RELIANCE", price: "2500" };
         } else if (options.provider === "EODHD") {
           rawData = { code: "RELIANCE.NSE", close: 2500 };
+        } else if (options.provider === "Alpha Vantage") {
+          if (options.endpointName === "Quote") {
+            rawData = { "Global Quote": { "01. symbol": "RELIANCE.NS", "05. price": "2500" } };
+          } else {
+            rawData = { "Time Series (Daily)": { "2026-07-06": { "4. close": "2500" } } };
+          }
         }
       }
 

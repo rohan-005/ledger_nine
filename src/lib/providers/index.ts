@@ -5,4 +5,5 @@ export { twelveDataProvider } from "./twelveData";
 export { eodhdProvider } from "./eodhd";
 export { newsApiProvider } from "./newsapi";
 export { tavilyProvider } from "./tavily";
+export { alphaVantageProvider } from "./alphavantage";
 export * from "./shared/types";
