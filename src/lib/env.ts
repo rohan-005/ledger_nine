@@ -63,3 +63,12 @@ export function getFinnhubApiKey(): string {
 export function getNewsApiKey(): string {
   return process.env.NEWS_API_KEY || "";
 }
+
+export function getTwelveDataApiKey(): string {
+  return process.env.TWELVE_DATA_API_KEY || "";
+}
+
+export function getEodhdApiKey(): string {
+  return process.env.EODHD_API_KEY || "";
+}
+
