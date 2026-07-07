@@ -211,7 +211,10 @@ export default function DiagnosticsDashboard() {
       case "auth_error":
         return "bg-red-500/10 text-red-600 border-red-500/20 font-bold";
       case "plan_limited":
+      case "plan_limit":
         return "bg-purple-500/10 text-purple-600 border-purple-500/20 font-medium";
+      case "malformed_response":
+        return "bg-red-500/10 text-red-600 border-red-500/20 font-medium";
       case "unsupported":
         return "bg-purple-500/10 text-purple-500 border-purple-500/20";
       case "timeout":

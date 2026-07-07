@@ -10,7 +10,9 @@ export type ProviderEndpointStatus =
   | "timeout"
   | "network_error"
   | "provider_error"
-  | "plan_limited";
+  | "plan_limited"
+  | "plan_limit"
+  | "malformed_response";
 
 export interface EndpointResult {
   provider: string;

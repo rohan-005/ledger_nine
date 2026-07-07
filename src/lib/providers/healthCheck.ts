@@ -503,6 +503,7 @@ function mapEndpointStatusToHealth(status: string): ProviderHealthStatus["status
     case "auth_error":
       return "auth_error";
     case "plan_limited":
+    case "plan_limit":
       return "plan_limited";
     case "unsupported":
       return "unsupported";

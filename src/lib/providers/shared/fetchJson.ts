@@ -201,22 +201,28 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
       status = mapErrorStatus(httpStatus, msg, rawData, options.provider, options.symbolUsed);
       
       let finalMsg = msg;
-      if (status === "plan_limited") {
+      if (status === "plan_limited" || status === "plan_limit") {
         finalMsg = `Plan limitation reached for ${options.provider}`;
       } else if (status === "rate_limit") {
         finalMsg = `API limit reached for ${options.provider}`;
       } else if (status === "auth_error") {
         finalMsg = `Authentication failed: ${options.provider}`;
+      } else if (status === "malformed_response") {
+        finalMsg = `Malformed response from ${options.provider}: ${parseErrorMsg || textOutput}`;
       }
 
       errorObj = {
-        code: status === "plan_limited" ? "PLAN_LIMITED" : `HTTP_${httpStatus || "PARSE_ERROR"}`,
+        code: (status === "plan_limited" || status === "plan_limit")
+          ? "PLAN_LIMITED"
+          : status === "malformed_response"
+          ? "MALFORMED_RESPONSE"
+          : `HTTP_${httpStatus || "PARSE_ERROR"}`,
         message: redactSecrets(finalMsg),
       };
     } else {
       // Successful response but could still be a rate limit / paywall returned inside JSON (e.g. Twelve Data, EODHD)
       status = mapErrorStatus(httpStatus, "", rawData, options.provider, options.symbolUsed);
-      if (status === "plan_limited") {
+      if (status === "plan_limited" || status === "plan_limit") {
         errorObj = {
           code: "PLAN_LIMITED",
           message: `Plan limitation reached for ${options.provider}`,
@@ -240,6 +246,16 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
         errorObj = {
           code: "UNSUPPORTED_SYMBOL",
           message: "Symbol unsupported by provider.",
+        };
+      } else if (status === "malformed_response") {
+        errorObj = {
+          code: "MALFORMED_RESPONSE",
+          message: `Malformed response from ${options.provider}`,
+        };
+      } else if (status === "provider_error") {
+        errorObj = {
+          code: "PROVIDER_ERROR",
+          message: `Provider failed to return requested data: ${options.provider}`,
         };
       }
     }

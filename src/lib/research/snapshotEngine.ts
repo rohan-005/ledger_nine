@@ -338,12 +338,12 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     if (healthVal === "auth_error") status = "auth_error";
     else if (healthVal === "rate_limit") status = "rate_limit";
     else if (healthVal === "unsupported") status = "unsupported";
-    else if (healthVal === "plan_limited") status = "plan_limited";
+    else if (healthVal === "plan_limited" || healthVal === "plan_limit") status = "plan_limited";
     else if (endpoints.length === 0) status = "empty";
     else if (endpoints.some(e => !e.ok)) {
       const isAuth = endpoints.some(e => e.status === "auth_error");
       const isRate = endpoints.some(e => e.status === "rate_limit");
-      const isPlan = endpoints.some(e => e.status === "plan_limited");
+      const isPlan = endpoints.some(e => e.status === "plan_limited" || e.status === "plan_limit");
       if (isAuth) status = "auth_error";
       else if (isRate) status = "rate_limit";
       else if (isPlan) status = "plan_limited";

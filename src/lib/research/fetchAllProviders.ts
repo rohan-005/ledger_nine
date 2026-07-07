@@ -238,7 +238,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     } else {
       const rateLimits = endpoints.filter((e) => e.status === "rate_limit");
       const authErrors = endpoints.filter((e) => e.status === "auth_error");
-      const planLimits = endpoints.filter((e) => e.status === "plan_limited");
+      const planLimits = endpoints.filter((e) => e.status === "plan_limited" || e.status === "plan_limit");
       const timeouts = endpoints.filter((e) => e.status === "timeout");
       const networkErrors = endpoints.filter((e) => e.status === "network_error");
       const unsupported = endpoints.filter((e) => e.status === "unsupported");
