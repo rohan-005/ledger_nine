@@ -4,6 +4,7 @@ import { getGeminiApiKey } from "@/src/lib/env";
 import { EvidenceBundle } from "../research/buildEvidenceBundle";
 import { CompanyMarketSnapshot, SignalsBreakdown } from "../../types/snapshot";
 import { z } from "zod";
+import { compactEvidenceBundle } from "../research/compactPayload";
 
 export const analysisSchema = z.object({
   companySummary: z.string(),
@@ -76,36 +77,32 @@ export async function runGeminiAnalysis(
   try {
     const ai = new GoogleGenAI({ apiKey });
     
-    // Construct sanitized prompt and bundle payload
-    const sanitizedBundle = {
-      company: bundle.company,
-      companyProfiles: bundle.companyProfiles,
-      quotes: bundle.quotes,
-      financialStatements: bundle.financialStatements,
-      metrics: bundle.metrics,
-      ratios: bundle.ratios,
-      historicalPrices: bundle.historicalPrices,
-      news: bundle.news,
-      webResearch: bundle.webResearch,
-      providerFailures: bundle.providerFailures,
-    };
+    // Construct compacted evidence payload to limit context size
+    const compactedBundle = compactEvidenceBundle(bundle);
 
-    const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the company data bundle, local normalized snapshot, and mathematical signals, then return a structured JSON response matching the required schema.
+    // Sanitize pre-calculated signals to remove any final deterministic verdict or score contamination
+    const {
+      finalDeterministicScore,
+      deterministicVerdict,
+      ...analyticalSignals
+    } = signals;
+
+    const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the compacted company data bundle, local normalized snapshot, and analytical signals, then return a structured JSON response matching the required schema.
 CRITICAL RULES:
 1. You must NOT invent missing values. If a value is absent from the evidence, state that it is unavailable. Never infer or fabricate a financial value.
 2. Ground every interpretation in the provided evidence. Cite evidence IDs (e.g. "ev_1", "ev_2") in the citedEvidenceIds array.
 3. Identify conflicts between providers (e.g. quote discrepancies or trend disagreements) and output them in the conflicts array.
 4. List any key metrics or periods missing from the evidence in the evidenceGaps array.
-5. Review the calculated mathematical signals (Price Momentum, Valuation, Financial Quality, News Sentiment, Data Confidence) and the final deterministic score. Synthesize these facts to output a qualitative "verdict" (strictly "INVEST", "WATCH", or "PASS") and a synthesized "finalScore" (0-100). The finalScore should generally align with the deterministic rating but can be adjusted based on web research/news sentiment context.`;
+5. Review the calculated analytical signals (Price Momentum, Valuation, Financial Quality, News Sentiment, Data Confidence). Synthesize these facts to make an independent evidence-grounded judgment and output a qualitative "verdict" (strictly "INVEST", "WATCH", or "PASS") and a synthesized "finalScore" (0-100) representing your own professional analysis. Do not base your output on any external deterministic verdict.`;
 
-    const userPrompt = `Here is the factual evidence bundle:
-${JSON.stringify(sanitizedBundle, null, 2)}
+    const userPrompt = `Here is the compacted factual evidence bundle:
+${JSON.stringify(compactedBundle, null, 2)}
 
 Here is the normalized snapshot compiled:
 ${JSON.stringify(snapshot, null, 2)}
 
-Here are the pre-calculated mathematical signals:
-${JSON.stringify(signals, null, 2)}`;
+Here are the pre-calculated analytical signals:
+${JSON.stringify(analyticalSignals, null, 2)}`;
 
     // Call Gemini API
     const response = await ai.models.generateContent({
@@ -114,7 +111,7 @@ ${JSON.stringify(signals, null, 2)}`;
       config: {
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
-        temperature: 0.1,
+        temperature: 0.25,
       },
     });
 

@@ -1,7 +1,7 @@
 ================================================================================
-LEDGER NINE - E2E PIPELINE & PROVIDER FALLBACK TEST REPORT
+LEDGER NINE - E2E PIPELINE & PROVIDER FALLBACK TEST REPORT (HARDENED LLM STACK)
 ================================================================================
-Timestamp: 2026-07-07T17:52:00Z
+Timestamp: 2026-07-07T18:20:00Z
 Environment: Local development server (Next.js 16.2.10, Turbopack)
 API Keys Configured: FMP, Finnhub, Twelve Data, EODHD, NewsAPI, Tavily, Gemini, Groq
 
@@ -18,46 +18,34 @@ Test Files:
 - tests/integration/diagnostics.test.ts (2 tests passed)
   - Verifies that the parallel diagnostic pipeline fetches all 7 providers successfully
   - Verifies partial failure handling, mock integration, and correct state transition
+- tests/integration/fallback.test.ts (3 tests passed) [NEW]
+  - Verifies strict fallback chain: Gemini -> Groq -> Unavailable (No deterministic fallback)
+  - Verifies Gemini success returns gemini analysis
+  - Verifies Groq success fallback when Gemini fails
+  - Verifies "unavailable" status and null data returned when both fail
 
-Total Tests Run: 5 Passed, 0 Failed.
+Total Tests Run: 8 Passed, 0 Failed.
 
 --------------------------------------------------------------------------------
 2. LIVE E2E BROWSER SUBAGENT VALIDATION RESULTS
 --------------------------------------------------------------------------------
 The browser subagent performed E2E flow validations against the live development server:
 
-TEST CASE 1: AAPL Normal Run (Gemini Primary -> Fallback)
-- Action: Selected AAPL suggestion chip, started run.
-- Result: Gemini API rate limit occurred. Pipeline gracefully fell back to GROQ.
-- Active Provider: groq (Structured JSON output compiled).
-- Output: Verdict WATCH, Score 51/100, progress bars and metrics fully rendered.
-
-TEST CASE 2: RELIANCE Indian Market Run
+TEST CASE 1: RELIANCE Indian Market Run (LLM Unavailable Fallback State)
 - Action: Selected RELIANCE suggestion chip, started run.
-- Result: Resolved to RELIANCE.NS. Queried EODHD, Twelve Data, Alpha Vantage, NewsAPI, and Tavily.
-- Active Provider: groq (Structured JSON output compiled).
-- Output: Verdict WATCH, Score 53/100. Correctly processed and rendered Indian market financials.
-
-TEST CASE 3: Gemini to Groq Fallback (Simulated)
-- Action: Selected AAPL. Simulated Gemini status to "rate_limit".
-- Result: Bypassed Gemini, called Groq directly.
-- Active Provider: groq (Structured JSON output compiled).
-- Output: Successful fallback representation on the UI.
-
-TEST CASE 4: Deterministic Fallback (Simulated)
-- Action: Simulated Gemini status to "rate_limit" and Groq status to "rate_limit".
-- Result: Bypassed both Gemini and Groq, fell back to local deterministic summarizer.
-- Active Provider: deterministic.
-- Output: Verdict WATCH, Score 51/100. Displayed deterministic thesis text in the UI:
-  "This is a deterministic, rule-based summary generated because both Gemini and Groq specialists failed..."
+- Result: Resolved to RELIANCE.NS. Factual endpoints completed.
+- AI Analysis Fallback: Gemini hit schema validation error; Groq hit API rate limit (429).
+- Active Provider: None / Unavailable.
+- UI Output: Elegant "AI Analysis Synthesis Unavailable" warning panel rendered inside the Investment Assessment card.
+- Log Logs: Gemini status (SCHEMA_FAILURE), Groq status (RATE_LIMIT) displayed cleanly inside the AI Orchestrator Execution Log.
+- Signals: Pre-calculated local deterministic engine signals and ratings fully rendered below.
 
 --------------------------------------------------------------------------------
 3. VERIFICATION SUMMARY
 --------------------------------------------------------------------------------
-- Indian and US market support works end-to-end.
-- Raw and normalized JSON datasets are fully captured and saved to the bundle.
-- Gemini -> Groq -> Deterministic fallback chain functions exactly as expected under real and simulated failures.
-- No hardcoded financial data remains in the runtime database or UI.
-- All integration and unit tests are in a green/passing state.
-- Redesigned UI places Search, Auth Health, Verdicts, Signals, and Company Capabilities at the top, putting raw developer logs collapsibly below.
+- Hardened Fallback Chain: Strictly Gemini -> Groq -> Unavailable. The rule-based deterministic summary has been completely decoupled from the AI fallback pipeline.
+- Decontaminated Prompts: Gemini and Groq instructions sanitized to make an independent evidence-grounded qualitative decision, rather than aligning with deterministic score ratings.
+- Sanitized Signals: Destructured signals to remove 'finalDeterministicScore' and 'deterministicVerdict' properties before passing to LLM context to prevent rating contamination.
+- Compact Payload: Summarized candles, sliced news (top 5), sliced web research (top 3), and restricted financial statements to 3-4 years to avoid token limits.
+- Robust UI State: Handles null/unavailable AI analysis elegantly with custom warning alerts, while preserving operational data panels.
 ================================================================================

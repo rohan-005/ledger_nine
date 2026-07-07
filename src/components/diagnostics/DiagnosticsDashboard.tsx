@@ -472,96 +472,151 @@ export default function DiagnosticsDashboard() {
             {/* Investment Verdict (2/3 width) */}
             <div className="lg:col-span-2 bg-white rounded-2xl border border-border p-6 shadow-sm space-y-6 flex flex-col justify-between">
               
-              {/* Verdict Header */}
-              <div className="flex justify-between items-center border-b border-border pb-4">
-                <div>
-                  <h2 className="text-lg font-black text-foreground">INVESTMENT ASSESSMENT</h2>
-                  <p className="text-xs text-foreground-muted mt-0.5">
-                    Qualitative synthesis compiled by specialist model: <span className="font-bold text-foreground uppercase">{pipelineResult.analysisRunResult.activeProvider}</span>
-                  </p>
-                </div>
-                
-                {/* Active model badge */}
-                <div className={`px-2.5 py-1 rounded-lg border text-4xs font-mono font-bold uppercase ${
-                  pipelineResult.analysisRunResult.activeProvider === "gemini"
-                    ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                    : pipelineResult.analysisRunResult.activeProvider === "groq"
-                    ? "bg-orange-500/10 text-orange-600 border-orange-500/20"
-                    : "bg-purple-500/10 text-purple-600 border-purple-500/20"
-                }`}>
-                  {pipelineResult.analysisRunResult.activeProvider}
-                </div>
-              </div>
-
-              {/* Main Verdict Row */}
-              <div className="flex flex-col sm:flex-row gap-6 items-center py-2">
-                {/* Large Verdict Badge */}
-                <div className="text-center space-y-2">
-                  <div className={`w-36 py-4 rounded-2xl text-center border font-black text-xl flex flex-col justify-center items-center gap-1 ${getVerdictStyle(pipelineResult.analysisRunResult.analysis.verdict)}`}>
-                    <span className="tracking-wider">{pipelineResult.analysisRunResult.analysis.verdict}</span>
-                    <span className="text-5xs opacity-85 font-normal tracking-normal font-sans">
-                      {pipelineResult.analysisRunResult.analysis.verdict === "INVEST" && "Attractive Setup"}
-                      {pipelineResult.analysisRunResult.analysis.verdict === "WATCH" && "Monitor Setup"}
-                      {pipelineResult.analysisRunResult.analysis.verdict === "PASS" && "Avoid Setup"}
-                    </span>
+              {pipelineResult.analysisRunResult.status === "unavailable" || !pipelineResult.analysisRunResult.analysis ? (
+                <>
+                  {/* Verdict Header */}
+                  <div className="flex justify-between items-center border-b border-border pb-4">
+                    <div>
+                      <h2 className="text-lg font-black text-foreground">INVESTMENT ASSESSMENT</h2>
+                      <p className="text-xs text-foreground-muted mt-0.5">
+                        AI synthesis is currently unavailable
+                      </p>
+                    </div>
+                    <div className="px-2.5 py-1 rounded-lg border text-4xs font-mono font-bold uppercase bg-rose-500/10 text-rose-600 border-rose-500/20">
+                      UNAVAILABLE
+                    </div>
                   </div>
-                  <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Model Synthesis Verdict</span>
-                </div>
 
-                {/* Speedometer Score representation */}
-                <div className="text-center space-y-2">
-                  <div className="w-32 h-20 bg-background border border-border rounded-2xl flex flex-col justify-center items-center">
-                    <span className="text-2xl font-black text-foreground font-mono">{pipelineResult.analysisRunResult.analysis.finalScore}</span>
-                    <span className="text-5xs text-foreground-muted uppercase tracking-wider font-bold">out of 100</span>
+                  {/* Main Warning Block */}
+                  <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-bold text-foreground">AI Analysis Synthesis Unavailable</h3>
+                      <p className="text-xs text-foreground-secondary max-w-md mx-auto leading-relaxed">
+                        Both primary (Gemini) and fallback (Groq) models failed to respond with a schema-conforming analysis. Pre-calculated mathematical signals and raw provider health statuses remain fully operational.
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Synthesized Score</span>
-                </div>
 
-                {/* Qualitative Overall Thesis */}
-                <div className="flex-1 bg-background p-4 rounded-xl border border-border/80 space-y-1">
-                  <span className="text-6xs font-black text-foreground-muted uppercase tracking-wider block">Synthesized Investment Thesis:</span>
-                  <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
-                    {pipelineResult.analysisRunResult.analysis.overallSummary || pipelineResult.analysisRunResult.analysis.companySummary}
-                  </p>
-                </div>
-              </div>
+                  {/* Attempts Log */}
+                  <div className="border-t border-border pt-4 space-y-2">
+                    <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">AI Orchestrator Execution Log</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {pipelineResult.analysisRunResult.attempts?.map((attempt: any, idx: number) => (
+                        <div key={idx} className="border border-border/80 rounded-xl p-3 bg-background text-xs space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-foreground uppercase">{attempt.provider}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-5xs border font-bold uppercase ${
+                              attempt.status === "success" 
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" 
+                                : "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                            }`}>{attempt.status}</span>
+                          </div>
+                          <div className="text-4xs text-foreground-secondary font-medium font-mono">Model: {attempt.model} ({attempt.durationMs}ms)</div>
+                          {attempt.message && <div className="text-5xs text-rose-500 font-mono mt-1 break-all line-clamp-2">{attempt.message}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Verdict Header */}
+                  <div className="flex justify-between items-center border-b border-border pb-4">
+                    <div>
+                      <h2 className="text-lg font-black text-foreground">INVESTMENT ASSESSMENT</h2>
+                      <p className="text-xs text-foreground-muted mt-0.5">
+                        Qualitative synthesis compiled by specialist model: <span className="font-bold text-foreground uppercase">{pipelineResult.analysisRunResult.activeProvider}</span>
+                      </p>
+                    </div>
+                    
+                    {/* Active model badge */}
+                    <div className={`px-2.5 py-1 rounded-lg border text-4xs font-mono font-bold uppercase ${
+                      pipelineResult.analysisRunResult.activeProvider === "gemini"
+                        ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                        : pipelineResult.analysisRunResult.activeProvider === "groq"
+                        ? "bg-orange-500/10 text-orange-600 border-orange-500/20"
+                        : "bg-purple-500/10 text-purple-600 border-purple-500/20"
+                    }`}>
+                      {pipelineResult.analysisRunResult.activeProvider}
+                    </div>
+                  </div>
 
-              {/* Strengths & Concerns Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
-                <div className="border border-emerald-500/10 rounded-xl p-4 bg-emerald-500/5 space-y-2">
-                  <span className="font-extrabold text-xs text-emerald-800 uppercase block tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                    Key Strengths
-                  </span>
-                  <ul className="text-xs text-emerald-950 list-disc list-inside space-y-1.5">
-                    {pipelineResult.analysisRunResult.analysis.strengths.slice(0, 4).map((s: string, idx: number) => (
-                      <li key={idx} className="leading-snug text-4xs font-medium">{s}</li>
-                    ))}
-                  </ul>
-                </div>
+                  {/* Main Verdict Row */}
+                  <div className="flex flex-col sm:flex-row gap-6 items-center py-2">
+                    {/* Large Verdict Badge */}
+                    <div className="text-center space-y-2">
+                      <div className={`w-36 py-4 rounded-2xl text-center border font-black text-xl flex flex-col justify-center items-center gap-1 ${getVerdictStyle(pipelineResult.analysisRunResult.analysis.verdict)}`}>
+                        <span className="tracking-wider">{pipelineResult.analysisRunResult.analysis.verdict}</span>
+                        <span className="text-5xs opacity-85 font-normal tracking-normal font-sans">
+                          {pipelineResult.analysisRunResult.analysis.verdict === "INVEST" && "Attractive Setup"}
+                          {pipelineResult.analysisRunResult.analysis.verdict === "WATCH" && "Monitor Setup"}
+                          {pipelineResult.analysisRunResult.analysis.verdict === "PASS" && "Avoid Setup"}
+                        </span>
+                      </div>
+                      <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Model Synthesis Verdict</span>
+                    </div>
 
-                <div className="border border-rose-500/10 rounded-xl p-4 bg-rose-500/5 space-y-2">
-                  <span className="font-extrabold text-xs text-rose-800 uppercase block tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
-                    Key Concerns
-                  </span>
-                  <ul className="text-xs text-rose-950 list-disc list-inside space-y-1.5">
-                    {pipelineResult.analysisRunResult.analysis.concerns.slice(0, 4).map((c: string, idx: number) => (
-                      <li key={idx} className="leading-snug text-4xs font-medium">{c}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+                    {/* Speedometer Score representation */}
+                    <div className="text-center space-y-2">
+                      <div className="w-32 h-20 bg-background border border-border rounded-2xl flex flex-col justify-center items-center">
+                        <span className="text-2xl font-black text-foreground font-mono">{pipelineResult.analysisRunResult.analysis.finalScore}</span>
+                        <span className="text-5xs text-foreground-muted uppercase tracking-wider font-bold">out of 100</span>
+                      </div>
+                      <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Synthesized Score</span>
+                    </div>
 
-              {/* Resolved Specialist models details */}
-              <div className="grid grid-cols-2 gap-2 text-6xs text-foreground-muted border-t border-border pt-4">
-                <div>
-                  Gemini status: <span className="font-bold">{pipelineResult.analysisRunResult.gemini.status}</span> ({pipelineResult.analysisRunResult.gemini.durationMs}ms)
-                </div>
-                <div className="text-right">
-                  Groq status: <span className="font-bold">{pipelineResult.analysisRunResult.groq.status}</span> ({pipelineResult.analysisRunResult.groq.durationMs}ms)
-                </div>
-              </div>
+                    {/* Qualitative Overall Thesis */}
+                    <div className="flex-1 bg-background p-4 rounded-xl border border-border/80 space-y-1">
+                      <span className="text-6xs font-black text-foreground-muted uppercase tracking-wider block">Synthesized Investment Thesis:</span>
+                      <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
+                        {pipelineResult.analysisRunResult.analysis.overallSummary || pipelineResult.analysisRunResult.analysis.companySummary}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Strengths & Concerns Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
+                    <div className="border border-emerald-500/10 rounded-xl p-4 bg-emerald-500/5 space-y-2">
+                      <span className="font-extrabold text-xs text-emerald-800 uppercase block tracking-wider flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                        Key Strengths
+                      </span>
+                      <ul className="text-xs text-emerald-950 list-disc list-inside space-y-1.5">
+                        {pipelineResult.analysisRunResult.analysis.strengths?.slice(0, 4).map((s: string, idx: number) => (
+                          <li key={idx} className="leading-snug text-4xs font-medium">{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="border border-rose-500/10 rounded-xl p-4 bg-rose-500/5 space-y-2">
+                      <span className="font-extrabold text-xs text-rose-800 uppercase block tracking-wider flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                        Key Concerns
+                      </span>
+                      <ul className="text-xs text-rose-950 list-disc list-inside space-y-1.5">
+                        {pipelineResult.analysisRunResult.analysis.concerns?.slice(0, 4).map((c: string, idx: number) => (
+                          <li key={idx} className="leading-snug text-4xs font-medium">{c}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Resolved Specialist models details */}
+                  <div className="grid grid-cols-2 gap-2 text-6xs text-foreground-muted border-t border-border pt-4">
+                    <div>
+                      Gemini status: <span className="font-bold">{pipelineResult.analysisRunResult.gemini?.status}</span> ({pipelineResult.analysisRunResult.gemini?.durationMs}ms)
+                    </div>
+                    <div className="text-right">
+                      Groq status: <span className="font-bold">{pipelineResult.analysisRunResult.groq?.status}</span> ({pipelineResult.analysisRunResult.groq?.durationMs}ms)
+                    </div>
+                  </div>
+                </>
+              )}
 
             </div>
 
@@ -707,66 +762,68 @@ export default function DiagnosticsDashboard() {
           </div>
 
           {/* Section: Factual Interpretation details */}
-          <div className="bg-white rounded-2xl border border-border p-6 shadow-sm space-y-6">
-            <h2 className="text-base font-bold text-foreground border-b border-border pb-4">Detailed Model Interpretations</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Financial Trend Interpretation</span>
-                <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
-                  {pipelineResult.analysisRunResult.analysis.financialInterpretation}
+          {pipelineResult.analysisRunResult.status !== "unavailable" && pipelineResult.analysisRunResult.analysis && (
+            <div className="bg-white rounded-2xl border border-border p-6 shadow-sm space-y-6">
+              <h2 className="text-base font-bold text-foreground border-b border-border pb-4">Detailed Model Interpretations</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Financial Trend Interpretation</span>
+                  <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
+                    {pipelineResult.analysisRunResult.analysis.financialInterpretation}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Market Data Interpretation</span>
+                  <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
+                    {pipelineResult.analysisRunResult.analysis.marketInterpretation}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">News & Sentiment Synthesis</span>
+                  <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
+                    {pipelineResult.analysisRunResult.analysis.newsInterpretation}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Web Research Insights</span>
+                  <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
+                    {pipelineResult.analysisRunResult.analysis.webResearchInterpretation}
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Market Data Interpretation</span>
-                <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
-                  {pipelineResult.analysisRunResult.analysis.marketInterpretation}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">News & Sentiment Synthesis</span>
-                <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
-                  {pipelineResult.analysisRunResult.analysis.newsInterpretation}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Web Research Insights</span>
-                <div className="text-xs text-foreground-secondary leading-relaxed bg-background p-4 rounded-xl border border-border min-h-24">
-                  {pipelineResult.analysisRunResult.analysis.webResearchInterpretation}
-                </div>
-              </div>
-            </div>
 
-            {/* Cited Evidence index references */}
-            <div className="border-t border-border pt-4 space-y-2">
-              <span className="text-xs font-bold text-foreground-muted uppercase tracking-wider block">Cited Evidence Sources</span>
-              <div className="flex flex-wrap gap-2">
-                {pipelineResult.analysisRunResult.analysis.citedEvidenceIds.map((id: string) => {
-                  const item = pipelineResult.evidenceBundle?.evidenceIndex?.[id];
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => {
-                        if (item) {
-                          const key = `${item.provider}-${item.endpoint}`;
-                          // Open endpoint details accordion
-                          setExpandedEndpoints(prev => ({ ...prev, [key]: true }));
-                          const elem = document.getElementById(key);
-                          if (elem) elem.scrollIntoView({ behavior: "smooth" });
-                        }
-                      }}
-                      className="px-2 py-1 rounded bg-background hover:bg-surface-hover border border-border font-mono text-3xs text-foreground flex items-center gap-1.5 transition-all shadow-3xs"
-                    >
-                      <span className="font-extrabold text-primary">{id}</span>
-                      <span className="text-foreground-muted border-l border-border/60 pl-1.5">
-                        {item ? `${item.provider} (${item.endpoint})` : "Factual reference"}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* Cited Evidence index references */}
+              <div className="border-t border-border pt-4 space-y-2">
+                <span className="text-xs font-bold text-foreground-muted uppercase tracking-wider block">Cited Evidence Sources</span>
+                <div className="flex flex-wrap gap-2">
+                  {pipelineResult.analysisRunResult.analysis.citedEvidenceIds.map((id: string) => {
+                    const item = pipelineResult.evidenceBundle?.evidenceIndex?.[id];
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          if (item) {
+                            const key = `${item.provider}-${item.endpoint}`;
+                            // Open endpoint details accordion
+                            setExpandedEndpoints(prev => ({ ...prev, [key]: true }));
+                            const elem = document.getElementById(key);
+                            if (elem) elem.scrollIntoView({ behavior: "smooth" });
+                          }
+                        }}
+                        className="px-2 py-1 rounded bg-background hover:bg-surface-hover border border-border font-mono text-3xs text-foreground flex items-center gap-1.5 transition-all shadow-3xs"
+                      >
+                        <span className="font-extrabold text-primary">{id}</span>
+                        <span className="text-foreground-muted border-l border-border/60 pl-1.5">
+                          {item ? `${item.provider} (${item.endpoint})` : "Factual reference"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Section: Live Endpoint Diagnostic Outputs */}
           <div className="space-y-4">

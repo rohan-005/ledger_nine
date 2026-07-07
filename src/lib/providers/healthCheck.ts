@@ -348,8 +348,9 @@ async function checkAlphaVantage(): Promise<ProviderHealthStatus> {
 
 async function checkGemini(): Promise<ProviderHealthStatus> {
   const start = Date.now();
+  let key: string | null = null;
   try {
-    const key = getGeminiApiKey();
+    key = getGeminiApiKey();
     if (!key) {
       return {
         provider: "Gemini",
@@ -365,14 +366,14 @@ async function checkGemini(): Promise<ProviderHealthStatus> {
     const ai = new GoogleGenAI({ apiKey: key });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: "Hello",
+      contents: "Reply with exactly OK",
       config: {
         maxOutputTokens: 5,
       },
     });
 
     const durationMs = Date.now() - start;
-    if (response.text) {
+    if (response.text && response.text.trim().toUpperCase().includes("OK")) {
       return {
         provider: "Gemini",
         status: "working",
@@ -389,7 +390,7 @@ async function checkGemini(): Promise<ProviderHealthStatus> {
       checkedAt: new Date().toISOString(),
       durationMs,
       httpStatus: null,
-      message: "Gemini returned an empty response",
+      message: "Gemini returned an invalid response text: " + (response.text || "empty"),
       capabilities: [],
     };
   } catch (err: any) {
@@ -405,13 +406,16 @@ async function checkGemini(): Promise<ProviderHealthStatus> {
       status = "timeout";
     }
 
+    // Sanitize to not leak API keys
+    const cleanMsg = msg.replace(key || "key-not-found", "REDACTED_API_KEY");
+
     return {
       provider: "Gemini",
       status,
       checkedAt: new Date().toISOString(),
       durationMs,
       httpStatus: null,
-      message: msg,
+      message: cleanMsg,
       capabilities: [],
     };
   }
@@ -419,8 +423,8 @@ async function checkGemini(): Promise<ProviderHealthStatus> {
 
 async function checkGroq(): Promise<ProviderHealthStatus> {
   const start = Date.now();
+  const key = getGroqApiKey();
   try {
-    const key = getGroqApiKey();
     if (!key) {
       return {
         provider: "Groq",
@@ -436,12 +440,13 @@ async function checkGroq(): Promise<ProviderHealthStatus> {
     const groq = new Groq({ apiKey: key });
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: "Hello" }],
+      messages: [{ role: "user", content: "Reply with exactly OK" }],
       max_completion_tokens: 5,
     });
 
     const durationMs = Date.now() - start;
-    if (response.choices[0]?.message?.content) {
+    const contentText = response.choices[0]?.message?.content;
+    if (contentText && contentText.trim().toUpperCase().includes("OK")) {
       return {
         provider: "Groq",
         status: "working",
@@ -458,7 +463,7 @@ async function checkGroq(): Promise<ProviderHealthStatus> {
       checkedAt: new Date().toISOString(),
       durationMs,
       httpStatus: null,
-      message: "Groq returned an empty response",
+      message: "Groq returned an invalid response content: " + (contentText || "empty"),
       capabilities: [],
     };
   } catch (err: any) {
@@ -474,13 +479,16 @@ async function checkGroq(): Promise<ProviderHealthStatus> {
       status = "timeout";
     }
 
+    // Sanitize to not leak API keys
+    const cleanMsg = msg.replace(key || "key-not-found", "REDACTED_API_KEY");
+
     return {
       provider: "Groq",
       status,
       checkedAt: new Date().toISOString(),
       durationMs,
       httpStatus: null,
-      message: msg,
+      message: cleanMsg,
       capabilities: [],
     };
   }

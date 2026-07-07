@@ -5,14 +5,29 @@ import { runGroqAnalysis } from "../providers/groq";
 import { CompanyMarketSnapshot, SignalsBreakdown } from "../../types/snapshot";
 
 export interface AnalysisRunResult {
-  activeProvider: "gemini" | "groq" | "deterministic";
+  status: "success" | "unavailable";
+  analysisMode: "llm" | "unavailable";
+  selectedProvider: "gemini" | "groq" | null;
+  data: AnalysisOutput | null;
+  attempts: {
+    provider: "gemini" | "groq";
+    status: LLMAnalysisResult["status"];
+    durationMs: number;
+    model: string;
+    message?: string;
+  }[];
+  message?: string;
+
+  // Legacy fields for backward compatibility with frontend rendering
+  activeProvider: "gemini" | "groq" | "deterministic" | null;
   gemini: LLMAnalysisResult;
   groq: LLMAnalysisResult;
-  analysis: AnalysisOutput;
+  analysis: AnalysisOutput | null;
 }
 
 /**
  * Generates a rule-based deterministic summary from the evidence bundle when both LLMs fail.
+ * Note: Kept for reference or debug, but removed from fallback chain as requested.
  */
 export function generateDeterministicSummary(bundle: EvidenceBundle, signals: SignalsBreakdown): AnalysisOutput {
   const citedEvidenceIds: string[] = [];
@@ -132,7 +147,7 @@ export function generateDeterministicSummary(bundle: EvidenceBundle, signals: Si
 }
 
 /**
- * Runs the LLM fallback chain: Gemini -> Groq -> Deterministic Fallback.
+ * Runs the LLM fallback chain: Gemini -> Groq -> Unavailable.
  */
 export async function runCompanyAnalysis(
   bundle: EvidenceBundle,
@@ -143,11 +158,25 @@ export async function runCompanyAnalysis(
     groq?: "rate_limit" | "auth_error" | "timeout" | "schema_failure" | "provider_error";
   }
 ): Promise<AnalysisRunResult> {
+  const attempts: AnalysisRunResult["attempts"] = [];
+
   // 1. Try Gemini
   const geminiResult = await runGeminiAnalysis(bundle, snapshot, signals, simulate?.gemini);
+  attempts.push({
+    provider: "gemini",
+    status: geminiResult.status,
+    durationMs: geminiResult.durationMs,
+    model: geminiResult.model,
+    message: geminiResult.message,
+  });
 
   if (geminiResult.status === "success" && geminiResult.data) {
     return {
+      status: "success",
+      analysisMode: "llm",
+      selectedProvider: "gemini",
+      data: geminiResult.data,
+      attempts,
       activeProvider: "gemini",
       gemini: geminiResult,
       groq: {
@@ -164,9 +193,21 @@ export async function runCompanyAnalysis(
 
   // 2. Try Groq (on Gemini failure)
   const groqResult = await runGroqAnalysis(bundle, snapshot, signals, simulate?.groq);
+  attempts.push({
+    provider: "groq",
+    status: groqResult.status,
+    durationMs: groqResult.durationMs,
+    model: groqResult.model,
+    message: groqResult.message,
+  });
 
   if (groqResult.status === "success" && groqResult.data) {
     return {
+      status: "success",
+      analysisMode: "llm",
+      selectedProvider: "groq",
+      data: groqResult.data,
+      attempts,
       activeProvider: "groq",
       gemini: geminiResult,
       groq: groqResult,
@@ -174,13 +215,17 @@ export async function runCompanyAnalysis(
     };
   }
 
-  // 3. Fallback to Deterministic Summary
-  const deterministicAnalysis = generateDeterministicSummary(bundle, signals);
-
+  // 3. Fallback to Unavailable State (Strictly no deterministic summary fallback)
   return {
-    activeProvider: "deterministic",
+    status: "unavailable",
+    analysisMode: "unavailable",
+    selectedProvider: null,
+    data: null,
+    attempts,
+    activeProvider: null,
     gemini: geminiResult,
     groq: groqResult,
-    analysis: deterministicAnalysis,
+    analysis: null,
+    message: "Both Gemini and Groq AI analysis failed or returned invalid schemas.",
   };
 }
