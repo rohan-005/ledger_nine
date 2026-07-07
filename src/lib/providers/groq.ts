@@ -2,6 +2,7 @@ import "server-only";
 import Groq from "groq-sdk";
 import { getGroqApiKey } from "@/src/lib/env";
 import { EvidenceBundle } from "../research/buildEvidenceBundle";
+import { CompanyMarketSnapshot, SignalsBreakdown } from "../../types/snapshot";
 import { LLMAnalysisResult, analysisSchema } from "./gemini";
 
 const getApiKey = () => {
@@ -14,6 +15,8 @@ const getApiKey = () => {
 
 export async function runGroqAnalysis(
   bundle: EvidenceBundle,
+  snapshot: CompanyMarketSnapshot,
+  signals: SignalsBreakdown,
   simulate?: "rate_limit" | "auth_error" | "timeout" | "schema_failure" | "provider_error"
 ): Promise<LLMAnalysisResult> {
   const startTime = Date.now();
@@ -60,12 +63,13 @@ export async function runGroqAnalysis(
       providerFailures: bundle.providerFailures,
     };
 
-    const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the company data bundle and return a structured JSON response matching the required schema.
+    const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the company data bundle, local normalized snapshot, and mathematical signals, then return a structured JSON response matching the required schema.
 CRITICAL RULES:
 1. You must NOT invent missing values. If a value is absent from the evidence, state that it is unavailable. Never infer or fabricate a financial value.
 2. Ground every interpretation in the provided evidence. Cite evidence IDs (e.g. "ev_1", "ev_2") in the citedEvidenceIds array.
 3. Identify conflicts between providers (e.g. quote discrepancies or trend disagreements) and output them in the conflicts array.
 4. List any key metrics or periods missing from the evidence in the evidenceGaps array.
+5. Review the calculated mathematical signals (Price Momentum, Valuation, Financial Quality, News Sentiment, Data Confidence) and the final deterministic score. Synthesize these facts to output a qualitative "verdict" (strictly "INVEST", "WATCH", or "PASS") and a synthesized "finalScore" (0-100).
 
 YOUR RESPONSE MUST BE VALID JSON CONFORMING EXACTLY TO THIS SCHEMA:
 {
@@ -79,11 +83,19 @@ YOUR RESPONSE MUST BE VALID JSON CONFORMING EXACTLY TO THIS SCHEMA:
   "conflicts": ["string"],
   "evidenceGaps": ["string"],
   "overallSummary": "string",
-  "citedEvidenceIds": ["string"]
+  "citedEvidenceIds": ["string"],
+  "verdict": "INVEST" | "WATCH" | "PASS",
+  "finalScore": number
 }`;
 
     const userPrompt = `Here is the factual evidence bundle:
-${JSON.stringify(sanitizedBundle, null, 2)}`;
+${JSON.stringify(sanitizedBundle, null, 2)}
+
+Here is the normalized snapshot compiled:
+${JSON.stringify(snapshot, null, 2)}
+
+Here are the pre-calculated mathematical signals:
+${JSON.stringify(signals, null, 2)}`;
 
     // Call Groq API
     const response = await groq.chat.completions.create({

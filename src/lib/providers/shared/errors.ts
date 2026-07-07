@@ -7,10 +7,20 @@ import { ProviderEndpointStatus } from "./types";
 export function mapErrorStatus(
   httpStatus: number | null,
   errorMessage: string,
-  data: unknown
+  data: unknown,
+  provider?: string,
+  symbolUsed?: string | null
 ): ProviderEndpointStatus {
   const errLower = errorMessage.toLowerCase();
   const dataString = data ? JSON.stringify(data).toLowerCase() : "";
+  const symbolUpper = (symbolUsed || "").toUpperCase();
+  const isIndianSymbol =
+    symbolUpper.endsWith(".NS") ||
+    symbolUpper.endsWith(".BO") ||
+    symbolUpper.includes(".NSE") ||
+    symbolUpper.includes(".BSE") ||
+    symbolUpper.includes(":NSE") ||
+    symbolUpper.includes(":BSE");
 
   // 1. Check for Plan Limitations (HTTP 402, or specific plan messages on 403 / 200 / etc.)
   if (
@@ -83,6 +93,19 @@ export function mapErrorStatus(
     dataString.includes("invalid key") ||
     dataString.includes("authentication")
   ) {
+    if (isIndianSymbol && (provider === "Finnhub" || provider === "EODHD" || provider === "Twelve Data")) {
+      return "unsupported";
+    }
+    if (
+      errLower.includes("subscription") ||
+      errLower.includes("plan") ||
+      errLower.includes("tier") ||
+      dataString.includes("subscription") ||
+      dataString.includes("plan") ||
+      dataString.includes("tier")
+    ) {
+      return "plan_limited";
+    }
     return "auth_error";
   }
 

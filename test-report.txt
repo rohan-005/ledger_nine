@@ -1,7 +1,7 @@
 ================================================================================
 LEDGER NINE - E2E PIPELINE & PROVIDER FALLBACK TEST REPORT
 ================================================================================
-Timestamp: 2026-07-07T11:06:00Z
+Timestamp: 2026-07-07T17:52:00Z
 Environment: Local development server (Next.js 16.2.10, Turbopack)
 API Keys Configured: FMP, Finnhub, Twelve Data, EODHD, NewsAPI, Tavily, Gemini, Groq
 
@@ -13,76 +13,43 @@ Status: PASSED (100% success rate)
 
 Test Files:
 - tests/unit/symbol-candidates.test.ts (3 tests passed)
-  - verifies candidate resolution lists for US/Indian exchanges
-  - verifies exchange-specific symbol suffix mapping (.NS for NSE, .BO for BSE)
+  - Verifies candidate resolution lists for US/Indian exchanges
+  - Verifies exchange-specific symbol suffix mapping (.NS for NSE, .BO for BSE)
 - tests/integration/diagnostics.test.ts (2 tests passed)
-  - verifies that the parallel diagnostic pipeline fetches all 7 providers successfully
-  - verifies partial failure handling, mock integration, and correct state transition
+  - Verifies that the parallel diagnostic pipeline fetches all 7 providers successfully
+  - Verifies partial failure handling, mock integration, and correct state transition
+
+Total Tests Run: 5 Passed, 0 Failed.
 
 --------------------------------------------------------------------------------
-2. LIVE E2E FALLBACK PIPELINE TEST CASES (DETERMINISTIC & LLM FALLBACK)
+2. LIVE E2E BROWSER SUBAGENT VALIDATION RESULTS
 --------------------------------------------------------------------------------
-We ran E2E test cases hitting the live server's `/api/research/fetch` endpoint.
-The server processed real API calls for Indian/US stocks, built factual evidence
-bundles, and executed the LLM candidate/fallback chain with simulated failures.
+The browser subagent performed E2E flow validations against the live development server:
 
----
-TEST CASE 1: AAPL Normal Run (Gemini Primary)
----
-Result:
-- Duration: 49,041ms
-- Overall Status: success (with some providers plan-limited/rate-limited)
-- Gemini Status: schema_failure (due to validation failure or transient issue)
-- Groq Status: success (Duration: 2,841ms)
-- Active LLM Provider: "groq"
-- Verification:
-  - Gemini failed over gracefully to Groq.
-  - Groq successfully parsed the 20+ item factual evidence bundle.
-  - Returned structured JSON adhering to Zod schema.
-  - Summary snippet: "Apple Inc. is a technology company listed on the NASDAQ exchange with a market capitalization of $4,592,148,938,843 and ..."
-  - Strengths count: 3
-  - Concerns count: 3
-  - Evidence Gaps count: 3
-  - Cited Evidence IDs: ev_1, ev_2, ev_3, ev_4, ev_5, ev_6, ev_7, ev_8, ev_9
+TEST CASE 1: AAPL Normal Run (Gemini Primary -> Fallback)
+- Action: Selected AAPL suggestion chip, started run.
+- Result: Gemini API rate limit occurred. Pipeline gracefully fell back to GROQ.
+- Active Provider: groq (Structured JSON output compiled).
+- Output: Verdict WATCH, Score 51/100, progress bars and metrics fully rendered.
 
----
-TEST CASE 2: RELIANCE Indian Run (Gemini 429 -> Groq Active)
----
-Result:
-- Duration: 31,627ms
-- Overall Status: success
-- Gemini Status: rate_limit (Duration: 0ms - simulated bypass)
-- Groq Status: success (Duration: 7,219ms)
-- Active LLM Provider: "groq"
-- Verification:
-  - Bypassed Gemini instantly due to the simulation rate limit flag.
-  - Queried EODHD, Twelve Data, Alpha Vantage, NewsAPI, and Tavily for Reliance.
-  - Resolved symbol to RELIANCE.NS.
-  - Compiled Indian market data and sent the bundle to Groq.
-  - Summary snippet: "Reliance Industries Limited is a diversified conglomerate with operations in petrochemicals, refining, oil and gas, retail..."
-  - Strengths count: 4
-  - Concerns count: 5
-  - Evidence Gaps count: 2
-  - Cited Evidence IDs: ev_1, ev_2, ev_3, ev_4, ev_5, ev_6, ev_7
+TEST CASE 2: RELIANCE Indian Market Run
+- Action: Selected RELIANCE suggestion chip, started run.
+- Result: Resolved to RELIANCE.NS. Queried EODHD, Twelve Data, Alpha Vantage, NewsAPI, and Tavily.
+- Active Provider: groq (Structured JSON output compiled).
+- Output: Verdict WATCH, Score 53/100. Correctly processed and rendered Indian market financials.
 
----
-TEST CASE 3: TATASTEEL Indian Run (Gemini 429 + Groq Schema Failure -> Deterministic Fallback)
----
-Result:
-- Duration: 11,928ms (Low latency, zero LLM cost)
-- Overall Status: success
-- Gemini Status: rate_limit (Duration: 0ms - simulated bypass)
-- Groq Status: schema_failure (Duration: 0ms - simulated failure)
-- Active LLM Provider: "deterministic" (Dynamic Fallback)
-- Verification:
-  - Both LLM providers failed/were bypassed.
-  - Pipeline fell back immediately to the local Deterministic Summary Builder.
-  - Compiled company details directly from the fetched factual provider results.
-  - Summary snippet: "Deterministic fallback analysis for Tata Steel Limited (TATASTEEL). Exchange: NSE. Country: India...."
-  - Strengths count: 2
-  - Concerns count: 3
-  - Evidence Gaps count: 2
-  - Cited Evidence IDs: ev_1, ev_4, ev_5, ev_6, ev_7, ev_8, ev_9
+TEST CASE 3: Gemini to Groq Fallback (Simulated)
+- Action: Selected AAPL. Simulated Gemini status to "rate_limit".
+- Result: Bypassed Gemini, called Groq directly.
+- Active Provider: groq (Structured JSON output compiled).
+- Output: Successful fallback representation on the UI.
+
+TEST CASE 4: Deterministic Fallback (Simulated)
+- Action: Simulated Gemini status to "rate_limit" and Groq status to "rate_limit".
+- Result: Bypassed both Gemini and Groq, fell back to local deterministic summarizer.
+- Active Provider: deterministic.
+- Output: Verdict WATCH, Score 51/100. Displayed deterministic thesis text in the UI:
+  "This is a deterministic, rule-based summary generated because both Gemini and Groq specialists failed..."
 
 --------------------------------------------------------------------------------
 3. VERIFICATION SUMMARY
@@ -92,4 +59,5 @@ Result:
 - Gemini -> Groq -> Deterministic fallback chain functions exactly as expected under real and simulated failures.
 - No hardcoded financial data remains in the runtime database or UI.
 - All integration and unit tests are in a green/passing state.
+- Redesigned UI places Search, Auth Health, Verdicts, Signals, and Company Capabilities at the top, putting raw developer logs collapsibly below.
 ================================================================================

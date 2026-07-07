@@ -2,6 +2,7 @@ import "server-only";
 import { EvidenceBundle, EvidenceItem } from "./buildEvidenceBundle";
 import { runGeminiAnalysis, LLMAnalysisResult, AnalysisOutput } from "../providers/gemini";
 import { runGroqAnalysis } from "../providers/groq";
+import { CompanyMarketSnapshot, SignalsBreakdown } from "../../types/snapshot";
 
 export interface AnalysisRunResult {
   activeProvider: "gemini" | "groq" | "deterministic";
@@ -13,7 +14,7 @@ export interface AnalysisRunResult {
 /**
  * Generates a rule-based deterministic summary from the evidence bundle when both LLMs fail.
  */
-export function generateDeterministicSummary(bundle: EvidenceBundle): AnalysisOutput {
+export function generateDeterministicSummary(bundle: EvidenceBundle, signals: SignalsBreakdown): AnalysisOutput {
   const citedEvidenceIds: string[] = [];
 
   // Helper to find data by endpoint category
@@ -125,6 +126,8 @@ export function generateDeterministicSummary(bundle: EvidenceBundle): AnalysisOu
     evidenceGaps: ["Qualitative LLM synthesis is missing due to API limits or schema validation errors.", "Provider health status: " + healthList],
     overallSummary: "This is a deterministic, rule-based summary generated because both Gemini and Groq specialists failed or returned invalid schemas.",
     citedEvidenceIds: Array.from(new Set(citedEvidenceIds)),
+    verdict: signals.deterministicVerdict,
+    finalScore: signals.finalDeterministicScore,
   };
 }
 
@@ -133,13 +136,15 @@ export function generateDeterministicSummary(bundle: EvidenceBundle): AnalysisOu
  */
 export async function runCompanyAnalysis(
   bundle: EvidenceBundle,
+  snapshot: CompanyMarketSnapshot,
+  signals: SignalsBreakdown,
   simulate?: {
     gemini?: "rate_limit" | "auth_error" | "timeout" | "schema_failure" | "provider_error";
     groq?: "rate_limit" | "auth_error" | "timeout" | "schema_failure" | "provider_error";
   }
 ): Promise<AnalysisRunResult> {
   // 1. Try Gemini
-  const geminiResult = await runGeminiAnalysis(bundle, simulate?.gemini);
+  const geminiResult = await runGeminiAnalysis(bundle, snapshot, signals, simulate?.gemini);
 
   if (geminiResult.status === "success" && geminiResult.data) {
     return {
@@ -158,7 +163,7 @@ export async function runCompanyAnalysis(
   }
 
   // 2. Try Groq (on Gemini failure)
-  const groqResult = await runGroqAnalysis(bundle, simulate?.groq);
+  const groqResult = await runGroqAnalysis(bundle, snapshot, signals, simulate?.groq);
 
   if (groqResult.status === "success" && groqResult.data) {
     return {
@@ -170,7 +175,7 @@ export async function runCompanyAnalysis(
   }
 
   // 3. Fallback to Deterministic Summary
-  const deterministicAnalysis = generateDeterministicSummary(bundle);
+  const deterministicAnalysis = generateDeterministicSummary(bundle, signals);
 
   return {
     activeProvider: "deterministic",

@@ -65,6 +65,56 @@ async function resolveSymbolAndVerify(
   return { resolvedSymbol: null, verifiedResult: null, tried };
 }
 
+async function resolveTwelveDataSymbol(
+  company: CompanyIdentity
+): Promise<{ resolvedSymbol: string | null; verifiedResult: EndpointResult | null; tried: string[] }> {
+  const display = company.displayTicker.toUpperCase().trim();
+  const canonical = (company.canonicalTicker || display).toUpperCase().trim();
+  const exchange = (company.exchange || "").trim().toUpperCase();
+  const country = (company.country || "").trim().toLowerCase();
+  const isIndia = country === "india" || exchange === "NSE" || exchange === "BSE";
+
+  try {
+    const searchResult = await twelveDataProvider.search(display);
+    if (!searchResult.ok || !searchResult.response.data || !Array.isArray(searchResult.response.data)) {
+      return { resolvedSymbol: null, verifiedResult: searchResult, tried: [display] };
+    }
+
+    const items = searchResult.response.data;
+    let matchedItem = items.find((item: any) => {
+      const sMatch = item.symbol.toUpperCase() === display || item.symbol.toUpperCase() === canonical;
+      if (!sMatch) return false;
+
+      if (isIndia) {
+        const cIndia = (item.country || "").toLowerCase() === "india";
+        const eIndia = ["NSE", "BSE", "NS", "BO"].includes((item.exchange || "").toUpperCase());
+        return cIndia || eIndia;
+      } else {
+        const cUS = ["united states", "us"].includes((item.country || "").toLowerCase());
+        const eUS = ["NASDAQ", "NYSE", "AMEX", "BATS", "ARCA"].includes((item.exchange || "").toUpperCase());
+        return cUS || eUS;
+      }
+    });
+
+    if (!matchedItem && items.length > 0) {
+      matchedItem = items.find((item: any) => item.symbol.toUpperCase() === display || item.symbol.toUpperCase() === canonical);
+    }
+
+    if (matchedItem) {
+      const resolved = matchedItem.exchange ? `${matchedItem.symbol}:${matchedItem.exchange}` : matchedItem.symbol;
+      const quoteResult = await twelveDataProvider.getQuote(resolved, null, [display, resolved]);
+      if (quoteResult.ok) {
+        return { resolvedSymbol: resolved, verifiedResult: quoteResult, tried: [display, resolved] };
+      }
+      return { resolvedSymbol: null, verifiedResult: quoteResult, tried: [display, resolved] };
+    }
+  } catch (err: any) {
+    logger.warn(`Twelve Data custom resolution failed`, err);
+  }
+
+  return { resolvedSymbol: null, verifiedResult: null, tried: [display] };
+}
+
 /**
  * Runs the full diagnostic pipeline on all 6 providers in parallel.
  */
@@ -83,9 +133,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     resolveSymbolAndVerify("Finnhub", candidates.finnhub, (cand, tried) =>
       finnhubProvider.getProfile(cand, tried)
     ),
-    resolveSymbolAndVerify("Twelve Data", candidates.twelveData, (cand, tried) =>
-      twelveDataProvider.getQuote(cand, null, tried)
-    ),
+    resolveTwelveDataSymbol(company),
     resolveSymbolAndVerify("EODHD", candidates.eodhd, (cand, tried) =>
       eodhdProvider.getQuote(cand, tried)
     ),

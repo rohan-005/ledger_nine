@@ -19,61 +19,53 @@ interface TavilyTopicConfig {
 }
 
 const TOPICS: TavilyTopicConfig[] = [
-  { endpointName: "Overview", querySuffix: "overview core business model and products" },
-  { endpointName: "Developments", querySuffix: "recent developments key news events last 30 days" },
-  { endpointName: "Outlook", querySuffix: "future outlook growth drivers strategic expansion" },
-  { endpointName: "Risks", querySuffix: "core investment risks major challenges threats audit" },
-  { endpointName: "Competitors", querySuffix: "industry competitors peers competitive advantage" },
+  { endpointName: "Web Context", querySuffix: "recent business developments risks outlook" },
 ];
 
 export const tavilyProvider = {
   name: "Tavily",
 
   /**
-   * Executes 5 specialized parallel queries for a company.
+   * Executes a single basic query for a company to avoid rate limits.
    */
   async getDiagnostics(companyName: string): Promise<EndpointResult[]> {
     const key = getApiKey();
-
-    const tasks = TOPICS.map(async (topic) => {
-      const fullQuery = `"${companyName}" ${topic.querySuffix}`;
-      
-      const result = await fetchJson({
-        provider: "Tavily",
-        endpointName: topic.endpointName,
-        url: BASE_URL,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          api_key: key,
-          query: fullQuery,
-          search_depth: "advanced",
-          include_answer: true,
-          max_results: 5,
-        }),
+    const topic = TOPICS[0];
+    const fullQuery = `"${companyName}" ${topic.querySuffix}`;
+    
+    const result = await fetchJson({
+      provider: "Tavily",
+      endpointName: topic.endpointName,
+      url: BASE_URL,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key: key,
         query: fullQuery,
-        apiKeyCheck: getApiKey,
-      });
-
-      if (result.ok && result.response.raw && typeof result.response.raw === "object") {
-        const rawObj = result.response.raw as Record<string, any>;
-        result.response.data = {
-          answer: rawObj.answer || "",
-          results: Array.isArray(rawObj.results)
-            ? rawObj.results.map((r: any) => ({
-                title: r.title,
-                url: r.url,
-                content: r.content,
-              }))
-            : [],
-        };
-      }
-
-      return result;
+        search_depth: "basic",
+        include_answer: true,
+        max_results: 5,
+      }),
+      query: fullQuery,
+      apiKeyCheck: getApiKey,
     });
 
-    return Promise.all(tasks);
+    if (result.ok && result.response.raw && typeof result.response.raw === "object") {
+      const rawObj = result.response.raw as Record<string, any>;
+      result.response.data = {
+        answer: rawObj.answer || "",
+        results: Array.isArray(rawObj.results)
+          ? rawObj.results.map((r: any) => ({
+              title: r.title,
+              url: r.url,
+              content: r.content,
+            }))
+          : [],
+      };
+    }
+
+    return [result];
   },
 };

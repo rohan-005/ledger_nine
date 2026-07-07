@@ -19,11 +19,70 @@ interface FetchJsonOptions {
   apiKeyCheck?: () => string | null; // Optional check to see if API key is missing before calling
 }
 
+interface CacheEntry {
+  result: EndpointResult;
+  expiresAt: number;
+}
+
+// Global server-side memory cache
+const memoryCache = new Map<string, CacheEntry>();
+
+function purgeExpiredCache() {
+  const now = Date.now();
+  for (const [key, entry] of memoryCache.entries()) {
+    if (now >= entry.expiresAt) {
+      memoryCache.delete(key);
+    }
+  }
+}
+
+function getTTL(provider: string, endpointName: string): number {
+  const nameLower = endpointName.toLowerCase();
+  const providerLower = provider.toLowerCase();
+
+  if (nameLower.includes("quote")) {
+    return 2 * 60 * 1000; // 2 minutes for quotes
+  }
+  if (nameLower.includes("historical") || nameLower.includes("time series")) {
+    return 1 * 60 * 60 * 1000; // 1 hour for historical prices / time series
+  }
+  if (nameLower.includes("news") || nameLower.includes("article")) {
+    return 15 * 60 * 1000; // 15 minutes for news
+  }
+  if (providerLower === "tavily" || nameLower.includes("search")) {
+    if (nameLower.includes("search")) {
+      return 1 * 60 * 60 * 1000; // 1 hour for search / symbol lookups
+    }
+    return 15 * 60 * 1000; // 15 minutes for Tavily web research
+  }
+  // Default to 12 hours for fundamentals (statements, ratios, metrics, profile)
+  return 12 * 60 * 60 * 1000;
+}
+
+function cloneResult(res: EndpointResult): EndpointResult {
+  return {
+    ...res,
+    request: {
+      ...res.request,
+      candidatesTried: [...res.request.candidatesTried],
+    },
+    response: {
+      ...res.response,
+      raw: res.response.raw ? JSON.parse(JSON.stringify(res.response.raw)) : null,
+      data: res.response.data ? JSON.parse(JSON.stringify(res.response.data)) : null,
+    },
+    error: res.error ? { ...res.error } : null,
+  };
+}
+
 /**
  * Executes a network request and wraps it in a unified EndpointResult contract.
  * Catches all errors (timeouts, network, HTTP statuses, rate limits) to guarantee isolation.
+ * Uses a memory cache to optimize quota consumption.
  */
 export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResult> {
+  purgeExpiredCache();
+
   const startedAt = new Date().toISOString();
   const startTime = Date.now();
   
@@ -36,6 +95,20 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
 
   // Redacted request fields
   const redactedUrl = redactSecrets(options.url);
+
+  // Cache lookup (only for GET requests)
+  const cacheKey = `${options.provider}:${options.endpointName}:${symbolUsed || symbolRequested || ""}:${query || ""}:${options.url}`;
+  if (method === "GET") {
+    const cached = memoryCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      logger.info(`Serving cached endpoint result for ${options.provider} -> ${options.endpointName} (${symbolUsed || symbolRequested || "query"})`);
+      const cloned = cloneResult(cached.result);
+      cloned.startedAt = startedAt;
+      cloned.completedAt = new Date().toISOString();
+      cloned.durationMs = 0; // Indicates cached
+      return cloned;
+    }
+  }
 
   const initialResult: EndpointResult = {
     provider: options.provider,
@@ -125,7 +198,7 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
         ? `HTTP status ${response.status}: ${textOutput}`
         : `JSON Parse Error: ${parseErrorMsg}`;
       
-      status = mapErrorStatus(httpStatus, msg, rawData);
+      status = mapErrorStatus(httpStatus, msg, rawData, options.provider, options.symbolUsed);
       
       let finalMsg = msg;
       if (status === "plan_limited") {
@@ -142,7 +215,7 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
       };
     } else {
       // Successful response but could still be a rate limit / paywall returned inside JSON (e.g. Twelve Data, EODHD)
-      status = mapErrorStatus(httpStatus, "", rawData);
+      status = mapErrorStatus(httpStatus, "", rawData, options.provider, options.symbolUsed);
       if (status === "plan_limited") {
         errorObj = {
           code: "PLAN_LIMITED",
@@ -176,7 +249,6 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
     if (Array.isArray(rawData)) {
       recordCount = rawData.length;
     } else if (rawData && typeof rawData === "object") {
-      // Check for records arrays (e.g., Twelve Data "values", FMP arrays, etc.)
       const obj = rawData as Record<string, any>;
       if (Array.isArray(obj.values)) {
         recordCount = obj.values.length;
@@ -191,7 +263,7 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
 
     const ok = status === "success";
 
-    return {
+    const result: EndpointResult = {
       provider: options.provider,
       endpointName: options.endpointName,
       status,
@@ -210,11 +282,22 @@ export async function fetchJson(options: FetchJsonOptions): Promise<EndpointResu
       },
       response: {
         recordCount,
-        data: null, // Client will populate this with normalized data if status === "success"
+        data: null,
         raw: redactObjectSecrets(rawData),
       },
       error: errorObj,
     };
+
+    // Cache successful GET results
+    if (ok && method === "GET") {
+      const ttl = getTTL(options.provider, options.endpointName);
+      memoryCache.set(cacheKey, {
+        result,
+        expiresAt: Date.now() + ttl,
+      });
+    }
+
+    return result;
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
     const completedAt = new Date().toISOString();
