@@ -140,14 +140,14 @@ export default function DiagnosticsDashboard() {
     setPipelineResult(null);
     
     // Step 1: candidates validation
-    setLoadingStep("1. Validating symbol candidates sequentially across FMP, Finnhub, Twelve Data, EODHD, Alpha Vantage...");
+    setLoadingStep("1. Validating symbol candidates sequentially across FMP, Finnhub, Twelve Data, Yahoo Finance, Alpha Vantage...");
     
     try {
       await new Promise((r) => setTimeout(r, 600));
-      setLoadingStep("2. Initiating parallel fetches for resolved tickers across 7 API providers...");
+      setLoadingStep("2. Initiating parallel fetches for resolved tickers across 7 data providers...");
       
       await new Promise((r) => setTimeout(r, 600));
-      setLoadingStep("3. Fetching raw metrics, financial statements, time series, news and Tavily research...");
+      setLoadingStep("3. Fetching raw metrics, financial statements, time series, news and Yahoo Finance chart...");
 
       await new Promise((r) => setTimeout(r, 400));
       setLoadingStep("4. Compiling factual evidence bundle and redacting sensitive parameters...");
@@ -635,6 +635,31 @@ export default function DiagnosticsDashboard() {
                 </div>
               </div>
             </div>
+            
+            {pipelineResult.snapshot.validation && pipelineResult.snapshot.validation.status !== "unchecked" && (
+              <div className="bg-background border border-border/80 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <span className="text-6xs text-foreground-muted uppercase tracking-wider block font-bold mb-0.5">Data Quality & Validation Report</span>
+                  <p className="text-2xs text-foreground-secondary font-medium leading-relaxed">
+                    Compared primary quote from <span className="font-bold text-foreground">{pipelineResult.snapshot.validation.primarySource}</span> against <span className="font-bold text-foreground">{pipelineResult.snapshot.validation.comparedSource}</span> as part of cross-provider validation check.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {pipelineResult.snapshot.validation.deviationPercent !== null && (
+                    <span className="text-2xs text-foreground-muted font-mono bg-white px-2 py-0.5 rounded border border-border">
+                      Deviation: {pipelineResult.snapshot.validation.deviationPercent.toFixed(4)}%
+                    </span>
+                  )}
+                  <span className={`text-5xs font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${
+                    pipelineResult.snapshot.validation.status === "consistent"
+                      ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                      : "bg-amber-500/10 text-amber-700 border-amber-500/20"
+                  }`}>
+                    {pipelineResult.snapshot.validation.status}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Step 3: Stock Price History (Last 2-3 Years) */}

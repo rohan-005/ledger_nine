@@ -99,7 +99,11 @@ export function buildEvidenceBundle(
       metrics.push(item);
     } else if (endpointLower.includes("ratios")) {
       ratios.push(item);
-    } else if (endpointLower.includes("historical") || endpointLower.includes("time series")) {
+    } else if (
+      endpointLower.includes("historical") ||
+      endpointLower.includes("time series") ||
+      endpointLower.includes("chart")
+    ) {
       historicalPrices.push(item);
     } else if (endpointLower.includes("news") || endpointLower.includes("articles")) {
       news.push(item);

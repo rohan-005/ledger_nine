@@ -8,6 +8,30 @@ vi.mock("@/src/lib/providers/shared/fetchJson", () => ({
   fetchJson: vi.fn(),
 }));
 
+vi.mock("yahoo-finance2", () => {
+  return {
+    default: class {
+      search = async () => ({ quotes: [] });
+      quote = async () => ({
+        symbol: "AAPL",
+        regularMarketPrice: 150,
+        regularMarketChange: 2.5,
+        regularMarketChangePercent: 1.6,
+        regularMarketVolume: 1000000,
+        regularMarketDayHigh: 151,
+        regularMarketDayLow: 149,
+        fiftyTwoWeekHigh: 180,
+        fiftyTwoWeekLow: 130,
+        marketCap: 2500000000000,
+        sharesOutstanding: 16000000000,
+        currency: "USD",
+        exchange: "NASDAQ",
+      });
+      chart = async () => ({ quotes: [] });
+    }
+  };
+});
+
 describe("Diagnostics Pipeline Integration Tests", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -91,7 +115,7 @@ describe("Diagnostics Pipeline Integration Tests", () => {
 
     // Verify overall status and structure
     expect(res.overallStatus).toBe("success");
-    expect(res.providers).toHaveLength(6); // 6 approved providers (FMP, Finnhub, Twelve Data, SEC EDGAR, NewsAPI, Alpha Vantage)
+    expect(res.providers).toHaveLength(7); // 7 approved providers (FMP, Finnhub, Twelve Data, SEC EDGAR, NewsAPI, Alpha Vantage, Yahoo Finance)
     expect(res.allEndpoints.length).toBeGreaterThan(5);
 
     // Check FMP symbol resolved

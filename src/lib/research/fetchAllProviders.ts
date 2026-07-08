@@ -7,6 +7,7 @@ import {
   secProvider,
   newsApiProvider,
   alphaVantageProvider,
+  yahooProvider,
   EndpointResult,
   ProviderSummary,
   ProviderEndpointStatus,
@@ -132,19 +133,24 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
 
   const allEndpoints: EndpointResult[] = [];
 
-  // --- 1. RESOLVE SYMBOLS (FINNHUB & TWELVE DATA) ---
-  const [finnhubResolution, twelveDataResolution] = await Promise.all([
+  // --- 1. RESOLVE SYMBOLS (FINNHUB, TWELVE DATA & YAHOO FINANCE) ---
+  const [finnhubResolution, twelveDataResolution, yahooResolution] = await Promise.all([
     resolveSymbolAndVerify("Finnhub", candidates.finnhub, (cand, tried) =>
       finnhubProvider.getProfile(cand, tried)
     ),
     resolveTwelveDataSymbol(company),
+    resolveSymbolAndVerify("Yahoo Finance", candidates.yahoo, (cand, tried) =>
+      yahooProvider.getQuote(cand, tried)
+    ),
   ]);
 
   if (finnhubResolution.verifiedResult) allEndpoints.push(finnhubResolution.verifiedResult);
   if (twelveDataResolution.verifiedResult) allEndpoints.push(twelveDataResolution.verifiedResult);
+  if (yahooResolution.verifiedResult) allEndpoints.push(yahooResolution.verifiedResult);
 
   const finnhubSymbol = finnhubResolution.resolvedSymbol;
   const twelveDataSymbol = twelveDataResolution.resolvedSymbol;
+  const yahooSymbol = yahooResolution.resolvedSymbol;
 
   // --- 2. CONDITIONAL MARKET/QUOTE FETCHING ---
   let needMarketData = true;
@@ -192,17 +198,41 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
 
   // --- 3. CONDITIONAL OHLCV/TIME SERIES FETCHING ---
   let hasHistorical = false;
+  let twelveDataTimeSeriesRes: EndpointResult | null = null;
+  let yahooChartRes: EndpointResult | null = null;
 
-  // Primary: Twelve Data
+  // Primary: Twelve Data (validated for 3-year candle count)
   if (twelveDataSymbol) {
-    const twelveDataTimeSeriesRes = await twelveDataProvider.getTimeSeries(twelveDataSymbol, null, 1000);
+    twelveDataTimeSeriesRes = await twelveDataProvider.getTimeSeries(twelveDataSymbol, null, 1000);
     allEndpoints.push(twelveDataTimeSeriesRes);
-    if (twelveDataTimeSeriesRes.ok && twelveDataTimeSeriesRes.response.data) {
+    if (
+      twelveDataTimeSeriesRes.ok &&
+      twelveDataTimeSeriesRes.response.data &&
+      Array.isArray(twelveDataTimeSeriesRes.response.data) &&
+      twelveDataTimeSeriesRes.response.data.length >= 600
+    ) {
       hasHistorical = true;
     }
   }
 
-  // Fallback: Alpha Vantage (only if Twelve Data time series failed/was empty)
+  // Fallback 1: Yahoo Finance (if Twelve Data is unavailable or has insufficient history)
+  if (!hasHistorical && yahooSymbol) {
+    const now = new Date();
+    const period1 = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
+    yahooChartRes = await yahooProvider.getChart(yahooSymbol, period1, now);
+    allEndpoints.push(yahooChartRes);
+    if (yahooChartRes.ok && yahooChartRes.response.data && Array.isArray(yahooChartRes.response.data)) {
+      const candleCount = yahooChartRes.response.data.length;
+      if (candleCount >= 450) {
+        hasHistorical = true;
+        if (candleCount < 650) {
+          logger.info(`Yahoo Finance returned reduced historical coverage: ${candleCount} candles`);
+        }
+      }
+    }
+  }
+
+  // Fallback 2: Alpha Vantage (only if Twelve Data & Yahoo Finance failed or have insufficient history)
   if (!hasHistorical) {
     // If not resolved during quote fallback, resolve now
     if (!alphaVantageSymbol) {
@@ -348,7 +378,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
   const completedAt = new Date().toISOString();
 
   // --- 8. BUILD SUMMARIES ---
-  const providerNames = ["FMP", "Finnhub", "Twelve Data", "SEC EDGAR", "NewsAPI", "Alpha Vantage"];
+  const providerNames = ["FMP", "Finnhub", "Twelve Data", "SEC EDGAR", "NewsAPI", "Alpha Vantage", "Yahoo Finance"];
   const providersSummary: ProviderSummary[] = providerNames.map((p) => {
     const endpoints = allEndpoints.filter((e) => e.provider === p);
     const successCount = endpoints.filter((e) => e.ok).length;
@@ -414,6 +444,9 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     } else if (p === "Alpha Vantage") {
       symbolUsed = alphaVantageSymbol;
       tried = avResolutionTried(allEndpoints);
+    } else if (p === "Yahoo Finance") {
+      symbolUsed = yahooSymbol;
+      tried = yahooResolution.tried;
     }
 
     return {

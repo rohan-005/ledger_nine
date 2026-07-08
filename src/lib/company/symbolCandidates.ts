@@ -13,6 +13,7 @@ export interface ProviderCandidates {
   finnhub: string[];
   twelveData: string[];
   alphaVantage: string[];
+  yahoo: string[];
 }
 
 /**
@@ -85,6 +86,22 @@ export function getProviderCandidates(company: CompanyIdentity): ProviderCandida
     alphaVantage.push(display);
   }
 
+  // Yahoo Candidates
+  const yahoo: string[] = [];
+  if (isIndia) {
+    if (exchange === "BSE") {
+      yahoo.push(`${display}.BO`);
+      yahoo.push(canonical);
+    } else {
+      yahoo.push(`${display}.NS`);
+      yahoo.push(canonical);
+      yahoo.push(`${display}.BO`);
+    }
+  } else {
+    yahoo.push(canonical);
+    yahoo.push(display);
+  }
+
   // Deduplicate and filter out empty strings
   const cleanList = (list: string[]) =>
     Array.from(new Set(list.map((s) => s.trim().toUpperCase()).filter(Boolean)));
@@ -94,5 +111,6 @@ export function getProviderCandidates(company: CompanyIdentity): ProviderCandida
     finnhub: cleanList(finnhub),
     twelveData: cleanList(twelveData),
     alphaVantage: cleanList(alphaVantage),
+    yahoo: cleanList(yahoo),
   };
 }

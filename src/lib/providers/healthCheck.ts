@@ -5,6 +5,7 @@ import { twelveDataProvider } from "./twelveData";
 import { secProvider } from "./sec";
 import { newsApiProvider } from "./newsapi";
 import { alphaVantageProvider } from "./alphavantage";
+import { yahooProvider } from "./yahoo";
 import { getGroqApiKey } from "../env";
 import Groq from "groq-sdk";
 
@@ -54,6 +55,7 @@ export async function runAllProviderHealthChecks(force = false): Promise<{
     checkSecEdgar(),
     checkNewsApi(),
     checkAlphaVantage(),
+    checkYahoo(),
     checkGroq(),
   ];
 
@@ -298,6 +300,44 @@ async function checkAlphaVantage(): Promise<ProviderHealthStatus> {
       durationMs: Date.now() - start,
       httpStatus: null,
       message: err.message || "Alpha Vantage health check error.",
+      capabilities: [],
+    };
+  }
+}
+
+async function checkYahoo(): Promise<ProviderHealthStatus> {
+  const start = Date.now();
+  try {
+    const res = await yahooProvider.getQuote("AAPL");
+    const durationMs = Date.now() - start;
+    if (res.ok) {
+      return {
+        provider: "Yahoo Finance",
+        status: "working",
+        checkedAt: new Date().toISOString(),
+        durationMs,
+        httpStatus: res.httpStatus,
+        message: "Yahoo Finance quote query succeeded.",
+        capabilities: ["Quote", "Search", "Historical Prices", "Shares Outstanding", "Exchange/Currency Metadata"],
+      };
+    }
+    return {
+      provider: "Yahoo Finance",
+      status: mapEndpointStatusToHealth(res.status),
+      checkedAt: new Date().toISOString(),
+      durationMs,
+      httpStatus: res.httpStatus,
+      message: res.error?.message || "Yahoo Finance request failed.",
+      capabilities: [],
+    };
+  } catch (err: any) {
+    return {
+      provider: "Yahoo Finance",
+      status: "broken",
+      checkedAt: new Date().toISOString(),
+      durationMs: Date.now() - start,
+      httpStatus: null,
+      message: err.message || "Yahoo Finance health check error.",
       capabilities: [],
     };
   }

@@ -5,5 +5,7 @@ export { twelveDataProvider } from "./twelveData";
 export { secProvider } from "./sec";
 export { newsApiProvider } from "./newsapi";
 export { alphaVantageProvider } from "./alphavantage";
+export { yahooProvider } from "./yahoo";
 export * from "./shared/types";
+
 

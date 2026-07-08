@@ -97,4 +97,10 @@ export interface CompanyMarketSnapshot {
   providers: ProviderStatus[];
   categoryAssessments: CategoryAssessments;
   provenance?: Record<string, string>;
+  validation?: {
+    deviationPercent: number | null;
+    status: "consistent" | "divergent" | "unchecked";
+    primarySource: string;
+    comparedSource: string;
+  };
 }

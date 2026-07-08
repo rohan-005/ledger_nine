@@ -91,15 +91,26 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
   };
 
   // Compile Company Details
+  // Compile Company Details
+  const countryClean = (bundle.company.country || "").trim().toLowerCase();
+  const exchangeClean = (bundle.company.exchange || "").trim().toUpperCase();
+  const isIndia = countryClean === "india" || exchangeClean === "nse" || exchangeClean === "bse" || exchangeClean === "ns" || exchangeClean === "bo";
+
+  const finnhubQuote = bundle.quotes.find(q => q.provider === "Finnhub")?.data as Record<string, any>;
+  const yahooQuote = bundle.quotes.find(q => q.provider === "Yahoo Finance")?.data as Record<string, any>;
+  const tdQuote = bundle.quotes.find(q => q.provider === "Twelve Data")?.data as Record<string, any>;
+  const avQuote = bundle.quotes.find(q => q.provider === "Alpha Vantage")?.data as Record<string, any>;
+  const fmpQuote = bundle.quotes.find(q => q.provider === "FMP")?.data as Record<string, any>;
+
   const company: CompanyDetails = {
     name: bundle.company.name,
     ticker: bundle.company.ticker,
-    exchange: bundle.company.exchange || getProfileField("exchange", null),
+    exchange: bundle.company.exchange || getProfileField("exchange", null) || (yahooQuote?.exchange || null),
     country: bundle.company.country || getProfileField("country", null) || getProfileField("countryName", null),
     sector: getProfileField("sector", null),
     industry: getProfileField("industry", null) || getProfileField("finnhubIndustry", null),
     description: getProfileField("description", null),
-    currency: (bundle.company.country === "India" || bundle.company.exchange === "NSE" || bundle.company.exchange === "BSE") ? "INR" : "USD",
+    currency: (bundle.company.country === "India" || bundle.company.exchange === "NSE" || bundle.company.exchange === "BSE" || isIndia) ? "INR" : (yahooQuote?.currency || "USD"),
   };
 
   // Compile Market Data
@@ -116,27 +127,41 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
   let pb: number | null = null;
   let eps: number | null = null;
 
-  const finnhubQuote = bundle.quotes.find(q => q.provider === "Finnhub")?.data as Record<string, any>;
-  const tdQuote = bundle.quotes.find(q => q.provider === "Twelve Data")?.data as Record<string, any>;
-  const avQuote = bundle.quotes.find(q => q.provider === "Alpha Vantage")?.data as Record<string, any>;
-  const fmpQuote = bundle.quotes.find(q => q.provider === "FMP")?.data as Record<string, any>;
+  const hasPriceVal = (q: any) => {
+    if (!q) return false;
+    return q.price !== undefined || q.currentPrice !== undefined || q.close !== undefined;
+  };
 
   const selectQuote = () => {
-    if (finnhubQuote && finnhubQuote.price) return { q: finnhubQuote, p: "Finnhub" };
-    if (tdQuote && tdQuote.price) return { q: tdQuote, p: "Twelve Data" };
-    if (avQuote && avQuote.price) return { q: avQuote, p: "Alpha Vantage" };
-    if (fmpQuote && fmpQuote.price) return { q: fmpQuote, p: "FMP" };
+    if (isIndia) {
+      if (hasPriceVal(yahooQuote)) return { q: yahooQuote, p: "Yahoo Finance" };
+      if (hasPriceVal(tdQuote)) return { q: tdQuote, p: "Twelve Data" };
+      if (hasPriceVal(finnhubQuote)) return { q: finnhubQuote, p: "Finnhub" };
+      if (hasPriceVal(avQuote)) return { q: avQuote, p: "Alpha Vantage" };
+    } else {
+      if (hasPriceVal(finnhubQuote)) return { q: finnhubQuote, p: "Finnhub" };
+      if (hasPriceVal(yahooQuote)) return { q: yahooQuote, p: "Yahoo Finance" };
+      if (hasPriceVal(tdQuote)) return { q: tdQuote, p: "Twelve Data" };
+      if (hasPriceVal(avQuote)) return { q: avQuote, p: "Alpha Vantage" };
+    }
+    if (hasPriceVal(fmpQuote)) return { q: fmpQuote, p: "FMP" };
     return null;
   };
+
+  let deviationPercent: number | null = null;
+  let validationStatus: "consistent" | "divergent" | "unchecked" = "unchecked";
+  let primarySource = "None";
+  let comparedSource = "None";
 
   const selectedQuote = selectQuote();
   if (selectedQuote) {
     const q = selectedQuote.q;
     const p = selectedQuote.p;
+    primarySource = p;
     
-    price = parseFloat(q.price || q.close || q.currentPrice || 0) || null;
+    price = parseFloat(q.price !== undefined ? q.price : (q.currentPrice !== undefined ? q.currentPrice : q.close || 0)) || null;
     change = parseFloat(q.change || 0) || null;
-    changePercent = parseFloat(q.changePercent || q.changesPercentage || q.percent_change || 0) || null;
+    changePercent = parseFloat(q.changePercent !== undefined ? q.changePercent : (q.changesPercentage !== undefined ? q.changesPercentage : q.percent_change || 0)) || null;
     high = parseFloat(q.high || q.dayHigh || q.day_high || 0) || null;
     low = parseFloat(q.low || q.dayLow || q.day_low || 0) || null;
     previousClose = parseFloat(q.previousClose || q.prevClose || q.previous_close || 0) || null;
@@ -145,9 +170,43 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     sharesOutstanding = parseFloat(q.sharesOutstanding || q.sharesOutstandingTotal || 0) || null;
     pe = parseFloat(q.pe || q.peRatio || q.p_e || 0) || null;
 
+    provenance["market"] = p;
     provenance["market.price"] = p;
     provenance["market.volume"] = p;
     provenance["market.quote"] = p;
+
+    // Cross-provider price validation: Compare chosen quote with Yahoo Finance (or chosen Yahoo with backup)
+    if (p !== "Yahoo Finance" && yahooQuote) {
+      const yPrice = parseFloat(yahooQuote.price !== undefined ? yahooQuote.price : (yahooQuote.currentPrice !== undefined ? yahooQuote.currentPrice : yahooQuote.close || 0));
+      if (price && yPrice) {
+        comparedSource = "Yahoo Finance";
+        deviationPercent = (Math.abs(price - yPrice) / price) * 100;
+        validationStatus = deviationPercent >= 1.0 ? "divergent" : "consistent";
+      }
+    } else if (p === "Yahoo Finance") {
+      const backupQuote = hasPriceVal(finnhubQuote)
+        ? { q: finnhubQuote, p: "Finnhub" }
+        : (hasPriceVal(tdQuote) ? { q: tdQuote, p: "Twelve Data" } : null);
+      
+      if (backupQuote) {
+        comparedSource = backupQuote.p;
+        const backupPrice = parseFloat(backupQuote.q.price !== undefined ? backupQuote.q.price : (backupQuote.q.currentPrice !== undefined ? backupQuote.q.currentPrice : backupQuote.q.close || 0));
+        if (price && backupPrice) {
+          deviationPercent = (Math.abs(price - backupPrice) / price) * 100;
+          validationStatus = deviationPercent >= 1.0 ? "divergent" : "consistent";
+        }
+      }
+    }
+  }
+
+  // Fallback for metadata from Yahoo Finance if missing from primary feeds
+  if (sharesOutstanding === null && yahooQuote && typeof yahooQuote.sharesOutstanding === "number") {
+    sharesOutstanding = yahooQuote.sharesOutstanding;
+    provenance["market.sharesOutstanding"] = "Yahoo Finance";
+  }
+  if (marketCap === null && yahooQuote && typeof yahooQuote.marketCap === "number") {
+    marketCap = yahooQuote.marketCap;
+    provenance["market.marketCap"] = "Yahoo Finance";
   }
 
   // Fallbacks for Market Cap, PE, PB, EPS
@@ -210,12 +269,13 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
   let historyLength = 0;
 
   const tdHistory = bundle.historicalPrices.find(h => h.provider === "Twelve Data")?.data as Record<string, any>[];
+  const yahooHistory = bundle.historicalPrices.find(h => h.provider === "Yahoo Finance")?.data as Record<string, any>[];
   const avHistory = bundle.historicalPrices.find(h => h.provider === "Alpha Vantage")?.data as Record<string, any>[];
   const fmpHistory = bundle.historicalPrices.find(h => h.provider === "FMP")?.data as Record<string, any>[];
 
-  const selectedHistory = tdHistory || avHistory || fmpHistory;
+  const selectedHistory = tdHistory || yahooHistory || avHistory || fmpHistory;
   if (selectedHistory) {
-    provenance["history"] = tdHistory ? "Twelve Data" : avHistory ? "Alpha Vantage" : "FMP";
+    provenance["history"] = tdHistory ? "Twelve Data" : yahooHistory ? "Yahoo Finance" : avHistory ? "Alpha Vantage" : "FMP";
   }
 
   if (Array.isArray(selectedHistory) && selectedHistory.length > 1) {
@@ -371,7 +431,7 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
   };
 
   // Compile Provider Endpoint Statuses
-  const providerNames = ["FMP", "Finnhub", "Twelve Data", "SEC EDGAR", "NewsAPI", "Alpha Vantage"];
+  const providerNames = ["FMP", "Finnhub", "Twelve Data", "SEC EDGAR", "NewsAPI", "Alpha Vantage", "Yahoo Finance"];
   const providers: ProviderStatus[] = providerNames.map(provider => {
     const results = bundle.quotes.concat(
       bundle.companyProfiles,
@@ -587,5 +647,11 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     providers,
     categoryAssessments,
     provenance,
+    validation: {
+      deviationPercent,
+      status: validationStatus,
+      primarySource,
+      comparedSource,
+    },
   };
 }
