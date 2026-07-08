@@ -12,7 +12,7 @@ export function Tooltip({ content, children }: TooltipProps) {
 
   return (
     <span
-      className="relative inline-flex items-center group cursor-help border-b border-dashed border-foreground-muted/60 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-0.5"
+      className="relative inline-flex items-center group cursor-help border-b border-dashed border-foreground-muted/60 focus:outline-none focus:ring-1 focus:ring-orange-500 rounded px-0.5"
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
       onFocus={() => setVisible(true)}

@@ -39,14 +39,14 @@ export default function RootLayout({
           </Link>
           <nav aria-label="Primary navigation" className="flex items-center gap-6">
             <Link
-              href="/"
+              href="/#how-it-works"
               className="text-sm font-medium text-foreground-secondary hover:text-foreground transition-colors focus:outline-none focus:underline"
             >
               How it works
             </Link>
             <Link
-              href="/research/new"
-              className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+              href="/#search-section"
+              className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               Research a Company
             </Link>

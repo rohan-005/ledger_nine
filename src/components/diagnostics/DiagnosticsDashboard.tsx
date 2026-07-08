@@ -240,7 +240,7 @@ export default function DiagnosticsDashboard() {
       case "mixed":
         return "bg-amber-500/10 text-amber-700 border-amber-500/20";
       case "neutral":
-        return "bg-blue-500/10 text-blue-700 border-blue-500/20";
+        return "bg-slate-500/10 text-slate-700 border-slate-500/20";
       case "insufficient":
       case "weak":
       case "negative":
@@ -365,7 +365,7 @@ export default function DiagnosticsDashboard() {
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => query.trim() && setShowDropdown(true)}
                   placeholder="Type company name or ticker (e.g. AAPL, Reliance, TCS...)"
-                  className="w-full px-4 py-3 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                 />
                 {isSearching && (
                   <div className="absolute right-3 top-3.5 w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -459,7 +459,7 @@ export default function DiagnosticsDashboard() {
         <div className="bg-white rounded-2xl border border-border p-6 shadow-sm flex flex-col justify-between">
           <div>
             <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500 block"></span>
+              <span className="w-2 h-2 rounded-full bg-slate-500 block"></span>
               AUTH HEALTH
             </h2>
             <p className="text-5xs text-foreground-muted uppercase tracking-wider mt-1">
