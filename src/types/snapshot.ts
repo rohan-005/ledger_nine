@@ -62,6 +62,31 @@ export interface ProviderStatus {
   endpoints: { name: string; ok: boolean; status: string; error: string | null }[];
 }
 
+export interface CategoryAssessments {
+  priceHistory: {
+    status: "sufficient" | "insufficient" | "unavailable";
+    daysCount: number;
+    reason: string;
+  };
+  financialCapacity: {
+    status: "strong" | "moderate" | "weak" | "unavailable";
+    reason: string;
+  };
+  cashFlow: {
+    status: "positive" | "mixed" | "negative" | "unavailable";
+    reason: string;
+  };
+  news: {
+    status: "positive" | "negative" | "mixed" | "neutral" | "unavailable";
+    reason: string;
+  };
+  marketValue: {
+    status: "valued" | "unavailable";
+    marketCap: number | null;
+    reason: string;
+  };
+}
+
 export interface CompanyMarketSnapshot {
   company: CompanyDetails;
   market: MarketData;
@@ -70,15 +95,6 @@ export interface CompanyMarketSnapshot {
   news: Article[];
   web: WebContext;
   providers: ProviderStatus[];
+  categoryAssessments: CategoryAssessments;
   provenance?: Record<string, string>;
-}
-
-export interface SignalsBreakdown {
-  priceMomentum: number; // 0-100
-  valuation: number; // 0-100
-  financialQuality: number; // 0-100
-  newsContext: number; // 0-100
-  dataConfidence: number; // 0-100
-  finalDeterministicScore: number; // 0-100
-  deterministicVerdict: "INVEST" | "WATCH" | "PASS";
 }

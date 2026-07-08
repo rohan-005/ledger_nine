@@ -2,7 +2,7 @@ import "server-only";
 import Groq from "groq-sdk";
 import { getGroqApiKey } from "@/src/lib/env";
 import { EvidenceBundle } from "../research/buildEvidenceBundle";
-import { CompanyMarketSnapshot, SignalsBreakdown } from "../../types/snapshot";
+import { CompanyMarketSnapshot, CategoryAssessments } from "../../types/snapshot";
 import { z } from "zod";
 import { compactEvidenceBundle } from "../research/compactPayload";
 
@@ -44,7 +44,7 @@ const getApiKey = () => {
 export async function runGroqAnalysis(
   bundle: EvidenceBundle,
   snapshot: CompanyMarketSnapshot,
-  signals: SignalsBreakdown,
+  categoryAssessments: CategoryAssessments,
   simulate?: "rate_limit" | "auth_error" | "timeout" | "schema_failure" | "provider_error"
 ): Promise<LLMAnalysisResult> {
   const startTime = Date.now();
@@ -80,14 +80,7 @@ export async function runGroqAnalysis(
     // Construct compacted evidence payload to limit context size
     const compactedBundle = compactEvidenceBundle(bundle);
 
-    // Sanitize pre-calculated signals to remove any final deterministic verdict or score contamination
-    const {
-      finalDeterministicScore,
-      deterministicVerdict,
-      ...analyticalSignals
-    } = signals;
-
-    const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the compacted company data bundle, local normalized snapshot, and analytical signals, then return a structured JSON response matching the required schema.
+    const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the compacted company data bundle, local normalized snapshot, and transparent category assessments, then return a structured JSON response matching the required schema.
 
 CRITICAL ROLE AND RULES:
 1. STRICTLY QUALITATIVE ANALYSIS: You must NEVER invent or extrapolate any numerical facts (such as stock prices, EPS, revenues, profits, P/E, or cash flow ratios).
@@ -121,8 +114,8 @@ ${JSON.stringify(compactedBundle, null, 2)}
 Here is the normalized snapshot compiled:
 ${JSON.stringify(snapshot, null, 2)}
 
-Here are the pre-calculated analytical signals:
-${JSON.stringify(analyticalSignals, null, 2)}`;
+Here are the pre-calculated Category Assessments:
+${JSON.stringify(categoryAssessments, null, 2)}`;
 
     // Call Groq API
     const response = await groq.chat.completions.create({

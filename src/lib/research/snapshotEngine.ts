@@ -425,14 +425,167 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     };
   });
 
+  // --- Calculate Category Assessments ---
+  // 1. Price History Status
+  let priceHistoryStatus: "sufficient" | "insufficient" | "unavailable" = "unavailable";
+  let priceHistoryReason = "No price history data available.";
+  if (historyLength > 0) {
+    if (historyLength >= 500) {
+      priceHistoryStatus = "sufficient";
+      priceHistoryReason = `Retrieved ${historyLength} trading days of price history over the last 2-3 years without significant gaps.`;
+    } else {
+      priceHistoryStatus = "insufficient";
+      priceHistoryReason = `Retrieved only ${historyLength} trading days of price history, which is less than the required 2 years.`;
+    }
+  }
+
+  // 2. Financial Capacity Status
+  let financialCapacityStatus: "strong" | "moderate" | "weak" | "unavailable" = "unavailable";
+  let financialCapacityReason = "No financial data available.";
+  if (financials.length > 0) {
+    const anyNegativeIncome = financials.some(f => f.netIncome !== null && f.netIncome < 0);
+    const allPositiveIncome = financials.every(f => f.netIncome === null || f.netIncome > 0);
+
+    const equities = financials
+      .map(f => (f.totalAssets !== null && f.totalLiabilities !== null) ? f.totalAssets - f.totalLiabilities : null)
+      .filter((e): e is number => e !== null);
+
+    let equityGrowth = true;
+    let minorEquityDrop = false;
+    if (equities.length >= 2) {
+      const latestEquity = equities[0];
+      const oldestEquity = equities[equities.length - 1];
+      if (latestEquity < oldestEquity) {
+        equityGrowth = false;
+        minorEquityDrop = latestEquity >= oldestEquity * 0.9;
+      }
+    }
+
+    const d2es = financials.map(f => f.debtToEquity).filter((d): d is number => d !== null);
+    const maxD2E = d2es.length > 0 ? Math.max(...d2es) : null;
+
+    if (anyNegativeIncome || (maxD2E !== null && maxD2E > 3.0) || (!equityGrowth && !minorEquityDrop)) {
+      financialCapacityStatus = "weak";
+      financialCapacityReason = "Weak financial capacity: negative net income in one or more years, high debt-to-equity (> 3.0), or declining equity.";
+    } else if (allPositiveIncome && ((maxD2E !== null && maxD2E >= 1.5 && maxD2E <= 3.0) || minorEquityDrop || maxD2E === null)) {
+      financialCapacityStatus = "moderate";
+      financialCapacityReason = "Moderate financial capacity: positive net income, but moderate debt-to-equity (1.5-3.0) or minor equity drop.";
+    } else if (allPositiveIncome && equityGrowth && (maxD2E !== null && maxD2E < 1.5)) {
+      financialCapacityStatus = "strong";
+      financialCapacityReason = "Strong financial capacity: consistent positive net income, positive equity growth, and low debt-to-equity (< 1.5).";
+    } else {
+      financialCapacityStatus = "moderate";
+      financialCapacityReason = "Moderate financial capacity: positive net income, but some metrics are missing or moderate.";
+    }
+  }
+
+  // 3. Cash Flow Status
+  let cashFlowStatus: "positive" | "mixed" | "negative" | "unavailable" = "unavailable";
+  let cashFlowReason = "No cash flow data available.";
+  if (financials.length > 0) {
+    const allOpsCashPositive = financials.every(f => f.operatingCashFlow === null || f.operatingCashFlow > 0);
+    const anyOpsCashNegative = financials.some(f => f.operatingCashFlow !== null && f.operatingCashFlow < 0);
+    const allFcfPositive = financials.every(f => f.freeCashFlow === null || f.freeCashFlow > 0);
+    const anyFcfNegative = financials.some(f => f.freeCashFlow !== null && f.freeCashFlow < 0);
+
+    if (anyOpsCashNegative || (anyFcfNegative && financials.every(f => f.freeCashFlow !== null && f.freeCashFlow <= 0))) {
+      cashFlowStatus = "negative";
+      cashFlowReason = "Negative cash flow: operating cash flow is negative or free cash flow is consistently negative.";
+    } else if (allOpsCashPositive && allFcfPositive) {
+      cashFlowStatus = "positive";
+      cashFlowReason = "Positive cash flow: operating cash flow is positive and capex is fully covered (free cash flow is positive) in all years.";
+    } else if (allOpsCashPositive && anyFcfNegative) {
+      cashFlowStatus = "mixed";
+      cashFlowReason = "Mixed cash flow: operating cash flow is positive, but capex is high, leading to negative free cash flow in some years.";
+    } else {
+      cashFlowStatus = "mixed";
+      cashFlowReason = "Mixed or incomplete cash flow details.";
+    }
+  }
+
+  // 4. News Status
+  let newsStatus: "positive" | "negative" | "mixed" | "neutral" | "unavailable" = "unavailable";
+  let newsReason = "No news articles found.";
+  const newsList = news.slice(0, 10);
+  if (newsList.length > 0) {
+    const positiveWords = ["growth", "profit", "record", "gain", "upgrade", "buy", "bullish", "success", "beat", "higher", "positive", "strong"];
+    const negativeWords = ["drop", "loss", "decline", "fall", "downgrade", "sell", "bearish", "lawsuit", "warn", "debt", "lower", "weak", "concern", "dispute", "investigation", "probe", "fine", "penalty"];
+
+    let posCount = 0;
+    let negCount = 0;
+    for (const article of newsList) {
+      const text = `${article.title} ${article.summary || ""}`.toLowerCase();
+      for (const word of positiveWords) {
+        if (text.includes(word)) posCount++;
+      }
+      for (const word of negativeWords) {
+        if (text.includes(word)) negCount++;
+      }
+    }
+
+    if (posCount === 0 && negCount === 0) {
+      newsStatus = "neutral";
+      newsReason = "Neutral sentiment: News articles are purely factual without major positive or negative sentiment.";
+    } else if (negCount > posCount * 1.5) {
+      newsStatus = "negative";
+      newsReason = "Negative sentiment: News articles highlight key concerns, lawsuits, regulatory issues, or declines.";
+    } else if (posCount > negCount * 1.5) {
+      newsStatus = "positive";
+      newsReason = "Positive sentiment: Mostly positive news articles highlighting growth, profits, or successes.";
+    } else {
+      newsStatus = "mixed";
+      newsReason = "Mixed sentiment: Combination of positive and negative articles or moderate concerns.";
+    }
+  }
+
+  // 5. Market Value Status
+  let marketValueStatus: "valued" | "unavailable" = "unavailable";
+  let marketValueReason = "Market capitalization is unavailable.";
+  let resolvedMarketCap = market.marketCap;
+
+  if (resolvedMarketCap === null && market.price !== null && market.sharesOutstanding !== null) {
+     resolvedMarketCap = market.price * market.sharesOutstanding;
+  }
+
+  if (resolvedMarketCap !== null && resolvedMarketCap > 0) {
+    marketValueStatus = "valued";
+    marketValueReason = `Market value is successfully determined ($${(resolvedMarketCap / 1e9).toFixed(2)}B).`;
+  }
+
+  const categoryAssessments = {
+    priceHistory: {
+      status: priceHistoryStatus,
+      daysCount: historyLength,
+      reason: priceHistoryReason,
+    },
+    financialCapacity: {
+      status: financialCapacityStatus,
+      reason: financialCapacityReason,
+    },
+    cashFlow: {
+      status: cashFlowStatus,
+      reason: cashFlowReason,
+    },
+    news: {
+      status: newsStatus,
+      reason: newsReason,
+    },
+    marketValue: {
+      status: marketValueStatus,
+      marketCap: resolvedMarketCap,
+      reason: marketValueReason,
+    },
+  };
+
   return {
     company,
     market,
     history,
     financials,
-    news: news.slice(0, 10),
+    news: newsList,
     web,
     providers,
+    categoryAssessments,
     provenance,
   };
 }

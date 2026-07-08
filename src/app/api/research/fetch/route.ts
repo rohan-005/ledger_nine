@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { runDiagnosticsPipeline } from "@/src/lib/research/fetchAllProviders";
 import { buildEvidenceBundle } from "@/src/lib/research/buildEvidenceBundle";
 import { buildSnapshot } from "@/src/lib/research/snapshotEngine";
-import { calculateSignals } from "@/src/lib/research/signalsEngine";
 import { runCompanyAnalysis } from "@/src/lib/research/llmAnalysis";
 import { runAllProviderHealthChecks } from "@/src/lib/providers/healthCheck";
 import { CURATED_COMPANIES } from "@/src/data/curatedCompanies";
@@ -79,18 +78,15 @@ export async function POST(req: NextRequest) {
     // 4. Compile CompanyMarketSnapshot resolving conflicts
     const snapshot = buildSnapshot(evidenceBundle);
 
-    // 5. Calculate local deterministic Signals and Verdict
-    const signals = calculateSignals(snapshot);
-
-    // 6. Run LLM Analysis fallback chain (Gemini -> Groq -> Deterministic fallback)
-    const analysisRunResult = await runCompanyAnalysis(evidenceBundle, snapshot, signals, simulate);
+    // 5. Run LLM Analysis fallback chain (Groq only)
+    const analysisRunResult = await runCompanyAnalysis(evidenceBundle, snapshot, snapshot.categoryAssessments, simulate);
 
     // Combine everything into a single diagnostic response contract
     const responsePayload = {
       ...diagnostics,
       evidenceBundle,
       snapshot,
-      signals,
+      signals: null,
       analysisRunResult,
     };
 

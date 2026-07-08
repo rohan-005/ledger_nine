@@ -1,7 +1,7 @@
 import "server-only";
 import { EvidenceBundle } from "./buildEvidenceBundle";
 import { runGroqAnalysis, LLMAnalysisResult, AnalysisOutput } from "../providers/groq";
-import { CompanyMarketSnapshot, SignalsBreakdown } from "../../types/snapshot";
+import { CompanyMarketSnapshot, CategoryAssessments } from "../../types/snapshot";
 
 export interface AnalysisRunResult {
   status: "success" | "unavailable";
@@ -29,7 +29,7 @@ export interface AnalysisRunResult {
 export async function runCompanyAnalysis(
   bundle: EvidenceBundle,
   snapshot: CompanyMarketSnapshot,
-  signals: SignalsBreakdown,
+  categoryAssessments: CategoryAssessments,
   simulate?: {
     groq?: "rate_limit" | "auth_error" | "timeout" | "schema_failure" | "provider_error";
   }
@@ -37,7 +37,7 @@ export async function runCompanyAnalysis(
   const attempts: AnalysisRunResult["attempts"] = [];
 
   // Call Groq Analysis
-  const groqResult = await runGroqAnalysis(bundle, snapshot, signals, simulate?.groq);
+  const groqResult = await runGroqAnalysis(bundle, snapshot, categoryAssessments, simulate?.groq);
   
   attempts.push({
     provider: "groq",

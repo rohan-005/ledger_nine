@@ -18,8 +18,7 @@ describe("Symbol Candidates Generator Tests", () => {
     expect(res.fmp).toContain("AAPL");
     expect(res.finnhub).toContain("AAPL");
     expect(res.twelveData).toContain("AAPL");
-    expect(res.eodhd).toContain("AAPL.US");
-    expect(res.eodhd).toContain("AAPL");
+    expect(res.alphaVantage).toContain("AAPL");
   });
 
   it("should generate correct candidates for Indian stocks (e.g. Reliance NSE)", () => {
@@ -46,10 +45,10 @@ describe("Symbol Candidates Generator Tests", () => {
     expect(res.twelveData).toContain("RELIANCE");
     expect(res.twelveData).toContain("RELIANCE:NSE");
 
-    // EODHD
-    expect(res.eodhd).toContain("RELIANCE.NSE");
-    expect(res.eodhd).toContain("RELIANCE.BSE");
-    expect(res.eodhd).toContain("RELIANCE.NS");
+    // Alpha Vantage
+    expect(res.alphaVantage).toContain("RELIANCE.NSE");
+    expect(res.alphaVantage).toContain("RELIANCE.BSE");
+    expect(res.alphaVantage).toContain("RELIANCE.NS");
   });
 
   it("should generate correct candidates for Indian stocks (e.g. TCS BSE)", () => {
@@ -68,7 +67,7 @@ describe("Symbol Candidates Generator Tests", () => {
     // FMP should prioritize BO suffix for BSE exchange
     expect(res.fmp[0]).toBe("TCS.BO");
     
-    // EODHD should prioritize BSE exchange suffix
-    expect(res.eodhd[0]).toBe("TCS.BSE");
+    // Alpha Vantage should prioritize BSE exchange suffix
+    expect(res.alphaVantage[0]).toBe("TCS.BSE");
   });
 });

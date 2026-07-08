@@ -195,7 +195,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
 
   // Primary: Twelve Data
   if (twelveDataSymbol) {
-    const twelveDataTimeSeriesRes = await twelveDataProvider.getTimeSeries(twelveDataSymbol);
+    const twelveDataTimeSeriesRes = await twelveDataProvider.getTimeSeries(twelveDataSymbol, null, 1000);
     allEndpoints.push(twelveDataTimeSeriesRes);
     if (twelveDataTimeSeriesRes.ok && twelveDataTimeSeriesRes.response.data) {
       hasHistorical = true;

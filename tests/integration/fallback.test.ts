@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { runCompanyAnalysis } from "@/src/lib/research/llmAnalysis";
 import { EvidenceBundle } from "@/src/lib/research/buildEvidenceBundle";
-import { CompanyMarketSnapshot, SignalsBreakdown } from "@/src/types/snapshot";
+import { CompanyMarketSnapshot } from "@/src/types/snapshot";
 import { runGroqAnalysis } from "@/src/lib/providers/groq";
 
 vi.mock("@/src/lib/providers/groq", () => ({
@@ -65,16 +65,13 @@ describe("Strict Groq Analysis Integration Tests", () => {
       results: [],
     },
     providers: [],
-  };
-
-  const dummySignals: SignalsBreakdown = {
-    priceMomentum: 70,
-    valuation: 60,
-    financialQuality: 80,
-    newsContext: 90,
-    dataConfidence: 95,
-    finalDeterministicScore: 78,
-    deterministicVerdict: "INVEST",
+    categoryAssessments: {
+      priceHistory: { status: "sufficient", daysCount: 600, reason: "Good history" },
+      financialCapacity: { status: "strong", reason: "Good financials" },
+      cashFlow: { status: "positive", reason: "Good cash flow" },
+      news: { status: "positive", reason: "Positive sentiment" },
+      marketValue: { status: "valued", marketCap: 15000000000, reason: "Valued market cap" },
+    },
   };
 
   beforeEach(() => {
@@ -104,7 +101,7 @@ describe("Strict Groq Analysis Integration Tests", () => {
       },
     });
 
-    const res = await runCompanyAnalysis(dummyBundle, dummySnapshot, dummySignals);
+    const res = await runCompanyAnalysis(dummyBundle, dummySnapshot, dummySnapshot.categoryAssessments);
 
     expect(res.status).toBe("success");
     expect(res.selectedProvider).toBe("groq");
@@ -123,7 +120,7 @@ describe("Strict Groq Analysis Integration Tests", () => {
       message: "Timeout error",
     });
 
-    const res = await runCompanyAnalysis(dummyBundle, dummySnapshot, dummySignals);
+    const res = await runCompanyAnalysis(dummyBundle, dummySnapshot, dummySnapshot.categoryAssessments);
 
     expect(res.status).toBe("unavailable");
     expect(res.analysisMode).toBe("unavailable");

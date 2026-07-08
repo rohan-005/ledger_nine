@@ -12,7 +12,6 @@ export interface ProviderCandidates {
   fmp: string[];
   finnhub: string[];
   twelveData: string[];
-  eodhd: string[];
   alphaVantage: string[];
 }
 
@@ -67,26 +66,6 @@ export function getProviderCandidates(company: CompanyIdentity): ProviderCandida
   }
   twelveData.push(canonical);
 
-  // EODHD Candidates
-  // Uses .US for US equities, .NSE / .BSE for Indian equities
-  const eodhd: string[] = [];
-  if (isIndia) {
-    if (exchange === "BSE") {
-      eodhd.push(`${display}.BSE`);
-      eodhd.push(`${display}.NSE`);
-    } else {
-      eodhd.push(`${display}.NSE`);
-      eodhd.push(`${display}.BSE`);
-    }
-    eodhd.push(canonical);
-  } else {
-    if (country === "us" || country === "united states" || ["nasdaq", "nyse", "amex"].includes(exchange.toLowerCase())) {
-      eodhd.push(`${display}.US`);
-    }
-    eodhd.push(canonical);
-    eodhd.push(display);
-  }
-
   // Alpha Vantage Candidates
   const alphaVantage: string[] = [];
   if (isIndia) {
@@ -114,7 +93,6 @@ export function getProviderCandidates(company: CompanyIdentity): ProviderCandida
     fmp: cleanList(fmp),
     finnhub: cleanList(finnhub),
     twelveData: cleanList(twelveData),
-    eodhd: cleanList(eodhd),
     alphaVantage: cleanList(alphaVantage),
   };
 }
