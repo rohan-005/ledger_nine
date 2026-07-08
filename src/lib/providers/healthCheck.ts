@@ -2,12 +2,10 @@ import "server-only";
 import { fmpProvider } from "./fmp";
 import { finnhubProvider } from "./finnhub";
 import { twelveDataProvider } from "./twelveData";
-import { eodhdProvider } from "./eodhd";
+import { secProvider } from "./sec";
 import { newsApiProvider } from "./newsapi";
-import { tavilyProvider } from "./tavily";
 import { alphaVantageProvider } from "./alphavantage";
-import { getGeminiApiKey, getGroqApiKey } from "../env";
-import { GoogleGenAI } from "@google/genai";
+import { getGroqApiKey } from "../env";
 import Groq from "groq-sdk";
 
 export interface ProviderHealthStatus {
@@ -43,7 +41,7 @@ const CACHE_TTL_MS = 30000; // 30 seconds cache
 export async function runAllProviderHealthChecks(force = false): Promise<{
   statusMap: Record<string, string>;
   details: ProviderHealthStatus[];
-}> {
+ }> {
   const now = Date.now();
   if (!force && cachedHealth && now - cachedHealth.timestamp < CACHE_TTL_MS) {
     return cachedHealth;
@@ -53,11 +51,9 @@ export async function runAllProviderHealthChecks(force = false): Promise<{
     checkFmp(),
     checkFinnhub(),
     checkTwelveData(),
-    checkEodhd(),
+    checkSecEdgar(),
     checkNewsApi(),
-    checkTavily(),
     checkAlphaVantage(),
-    checkGemini(),
     checkGroq(),
   ];
 
@@ -82,7 +78,7 @@ export async function runAllProviderHealthChecks(force = false): Promise<{
 async function checkFmp(): Promise<ProviderHealthStatus> {
   const start = Date.now();
   try {
-    const res = await fmpProvider.search("AAPL");
+    const res = await fmpProvider.getProfile("AAPL");
     const durationMs = Date.now() - start;
     if (res.ok) {
       return {
@@ -91,7 +87,7 @@ async function checkFmp(): Promise<ProviderHealthStatus> {
         checkedAt: new Date().toISOString(),
         durationMs,
         httpStatus: res.httpStatus,
-        message: "FMP search query succeeded.",
+        message: "FMP profile query succeeded.",
         capabilities: ["Quote", "Search", "Financial Statements", "Metrics", "Ratios", "Historical Prices"],
       };
     }
@@ -193,39 +189,39 @@ async function checkTwelveData(): Promise<ProviderHealthStatus> {
   }
 }
 
-async function checkEodhd(): Promise<ProviderHealthStatus> {
+async function checkSecEdgar(): Promise<ProviderHealthStatus> {
   const start = Date.now();
   try {
-    const res = await eodhdProvider.search("AAPL");
+    const res = await secProvider.getSubmissions("AAPL");
     const durationMs = Date.now() - start;
     if (res.ok) {
       return {
-        provider: "EODHD",
+        provider: "SEC EDGAR",
         status: "working",
         checkedAt: new Date().toISOString(),
         durationMs,
         httpStatus: res.httpStatus,
-        message: "EODHD search query succeeded.",
-        capabilities: ["Quote", "Search", "Fundamentals (Profile)", "Historical Prices"],
+        message: "SEC EDGAR AAPL submissions retrieved successfully.",
+        capabilities: ["US filings", "CIK mapping", "Company Facts"],
       };
     }
     return {
-      provider: "EODHD",
+      provider: "SEC EDGAR",
       status: mapEndpointStatusToHealth(res.status),
       checkedAt: new Date().toISOString(),
       durationMs,
       httpStatus: res.httpStatus,
-      message: res.error?.message || "EODHD request failed.",
+      message: res.error?.message || "SEC EDGAR request failed.",
       capabilities: [],
     };
   } catch (err: any) {
     return {
-      provider: "EODHD",
+      provider: "SEC EDGAR",
       status: "broken",
       checkedAt: new Date().toISOString(),
       durationMs: Date.now() - start,
       httpStatus: null,
-      message: err.message || "EODHD health check error.",
+      message: err.message || "SEC EDGAR health check error.",
       capabilities: [],
     };
   }
@@ -269,45 +265,6 @@ async function checkNewsApi(): Promise<ProviderHealthStatus> {
   }
 }
 
-async function checkTavily(): Promise<ProviderHealthStatus> {
-  const start = Date.now();
-  try {
-    const results = await tavilyProvider.getDiagnostics("Apple Inc.");
-    const res = results[0]; // Check first of the 5 parallel queries
-    const durationMs = Date.now() - start;
-    if (res && res.ok) {
-      return {
-        provider: "Tavily",
-        status: "working",
-        checkedAt: new Date().toISOString(),
-        durationMs,
-        httpStatus: res.httpStatus,
-        message: "Tavily search query succeeded.",
-        capabilities: ["Web Research"],
-      };
-    }
-    return {
-      provider: "Tavily",
-      status: res ? mapEndpointStatusToHealth(res.status) : "broken",
-      checkedAt: new Date().toISOString(),
-      durationMs,
-      httpStatus: res ? res.httpStatus : null,
-      message: res?.error?.message || "Tavily request failed.",
-      capabilities: [],
-    };
-  } catch (err: any) {
-    return {
-      provider: "Tavily",
-      status: "broken",
-      checkedAt: new Date().toISOString(),
-      durationMs: Date.now() - start,
-      httpStatus: null,
-      message: err.message || "Tavily health check error.",
-      capabilities: [],
-    };
-  }
-}
-
 async function checkAlphaVantage(): Promise<ProviderHealthStatus> {
   const start = Date.now();
   try {
@@ -346,81 +303,6 @@ async function checkAlphaVantage(): Promise<ProviderHealthStatus> {
   }
 }
 
-async function checkGemini(): Promise<ProviderHealthStatus> {
-  const start = Date.now();
-  let key: string | null = null;
-  try {
-    key = getGeminiApiKey();
-    if (!key) {
-      return {
-        provider: "Gemini",
-        status: "auth_error",
-        checkedAt: new Date().toISOString(),
-        durationMs: Date.now() - start,
-        httpStatus: null,
-        message: "API Key not configured",
-        capabilities: [],
-      };
-    }
-
-    const ai = new GoogleGenAI({ apiKey: key });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: "Reply with exactly OK",
-      config: {
-        maxOutputTokens: 5,
-      },
-    });
-
-    const durationMs = Date.now() - start;
-    if (response.text && response.text.trim().toUpperCase().includes("OK")) {
-      return {
-        provider: "Gemini",
-        status: "working",
-        checkedAt: new Date().toISOString(),
-        durationMs,
-        httpStatus: 200,
-        message: "Gemini response succeeded.",
-        capabilities: ["AI Analysis Synthesis", "Factual Interpretation"],
-      };
-    }
-    return {
-      provider: "Gemini",
-      status: "broken",
-      checkedAt: new Date().toISOString(),
-      durationMs,
-      httpStatus: null,
-      message: "Gemini returned an invalid response text: " + (response.text || "empty"),
-      capabilities: [],
-    };
-  } catch (err: any) {
-    const durationMs = Date.now() - start;
-    const msg = err.message || "";
-    let status: ProviderHealthStatus["status"] = "broken";
-
-    if (msg.includes("rate limit") || msg.includes("429") || msg.includes("quota")) {
-      status = "rate_limit";
-    } else if (msg.includes("API key") || msg.includes("auth") || msg.includes("401") || msg.includes("403")) {
-      status = "auth_error";
-    } else if (msg.includes("timeout")) {
-      status = "timeout";
-    }
-
-    // Sanitize to not leak API keys
-    const cleanMsg = msg.replace(key || "key-not-found", "REDACTED_API_KEY");
-
-    return {
-      provider: "Gemini",
-      status,
-      checkedAt: new Date().toISOString(),
-      durationMs,
-      httpStatus: null,
-      message: cleanMsg,
-      capabilities: [],
-    };
-  }
-}
-
 async function checkGroq(): Promise<ProviderHealthStatus> {
   const start = Date.now();
   const key = getGroqApiKey();
@@ -454,7 +336,7 @@ async function checkGroq(): Promise<ProviderHealthStatus> {
         durationMs,
         httpStatus: 200,
         message: "Groq response succeeded.",
-        capabilities: ["Fallback AI Analysis", "Factual Interpretation"],
+        capabilities: ["Qualitative AI Synthesis", "Textual Analysis"],
       };
     }
     return {
@@ -479,7 +361,6 @@ async function checkGroq(): Promise<ProviderHealthStatus> {
       status = "timeout";
     }
 
-    // Sanitize to not leak API keys
     const cleanMsg = msg.replace(key || "key-not-found", "REDACTED_API_KEY");
 
     return {
@@ -506,6 +387,8 @@ function mapEndpointStatusToHealth(status: string): ProviderHealthStatus["status
     case "plan_limit":
       return "plan_limited";
     case "unsupported":
+    case "unsupported_symbol":
+    case "unsupported_market":
       return "unsupported";
     case "timeout":
       return "timeout";

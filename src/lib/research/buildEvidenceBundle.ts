@@ -90,7 +90,9 @@ export function buildEvidenceBundle(
       endpointLower.includes("statement") ||
       endpointLower.includes("balance sheet") ||
       endpointLower.includes("income") ||
-      endpointLower.includes("cash flow")
+      endpointLower.includes("cash flow") ||
+      endpointLower.includes("submissions") ||
+      endpointLower.includes("company facts")
     ) {
       financialStatements.push(item);
     } else if (endpointLower.includes("metrics") || endpointLower.includes("basic financials")) {

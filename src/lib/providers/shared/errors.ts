@@ -38,9 +38,19 @@ export function mapErrorStatus(
     symbolUpper.includes(".NSE") ||
     symbolUpper.includes(".BSE") ||
     symbolUpper.includes(":NSE") ||
-    symbolUpper.includes(":BSE");
+    symbolUpper.includes(":BSE") ||
+    symbolUpper === "RELIANCE"; // Quick check for Reliance Industries
 
   const providerLower = (provider || "").toLowerCase();
+
+  // 0. Check for explicit not_applicable
+  if (
+    combinedError.includes("not_applicable") ||
+    combinedError.includes("not applicable") ||
+    combinedError.includes("not treated as a us sec filer")
+  ) {
+    return "not_applicable";
+  }
 
   // 1. Check for JSON parse / malformed responses first
   if (
@@ -73,6 +83,10 @@ export function mapErrorStatus(
     combinedError.includes("limited to") ||
     combinedError.includes("api key is limited")
   ) {
+    // If a plan limitation is hit on an Indian symbol for Twelve Data or Finnhub, classify as unsupported_market
+    if (isIndianSymbol && (providerLower === "twelvedata" || providerLower === "twelve data" || providerLower === "finnhub")) {
+      return "unsupported_market";
+    }
     if (providerLower === "fmp") {
       return "plan_limit";
     }
@@ -107,8 +121,11 @@ export function mapErrorStatus(
     combinedError.includes("invalid key") ||
     combinedError.includes("authentication")
   ) {
-    if (isIndianSymbol && (provider === "Finnhub" || provider === "EODHD" || provider === "Twelve Data")) {
-      return "unsupported";
+    if (combinedError.includes("permission") || combinedError.includes("privilege") || combinedError.includes("not allowed")) {
+      return "permission_error";
+    }
+    if (isIndianSymbol && (provider === "Finnhub" || provider === "Twelve Data")) {
+      return "unsupported_market";
     }
     if (
       combinedError.includes("subscription") ||
@@ -150,9 +167,13 @@ export function mapErrorStatus(
     combinedError.includes("not supported") ||
     combinedError.includes("invalid symbol") ||
     combinedError.includes("no data found") ||
-    combinedError.includes("not found")
+    combinedError.includes("not found") ||
+    combinedError.includes("cik not found")
   ) {
-    return "unsupported";
+    if (isIndianSymbol && (providerLower === "sec edgar" || providerLower === "sec")) {
+      return "not_applicable";
+    }
+    return "unsupported_symbol";
   }
 
   // 8. If body contains any error message, treat as provider_error
@@ -180,10 +201,7 @@ export function isEmptyDataset(data: unknown): boolean {
   if (data === null || data === undefined) return true;
   if (Array.isArray(data)) return data.length === 0;
   if (typeof data === "object") {
-    // Check if it's empty object
     if (Object.keys(data).length === 0) return true;
-    
-    // Check if Twelve Data or other provider returns empty status or errors in body
     const obj = data as Record<string, any>;
     if (obj.status === "error" || obj.status === "error_status" || obj.error === true) {
       return true;

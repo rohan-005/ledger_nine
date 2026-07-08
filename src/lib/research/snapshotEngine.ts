@@ -3,27 +3,86 @@ import { EvidenceBundle } from "./buildEvidenceBundle";
 import { CompanyMarketSnapshot, FundamentalPeriod, Article, WebContext, ProviderStatus, CompanyDetails, MarketData, HistoricalReturns } from "../../types/snapshot";
 
 /**
+ * Parses SEC facts for a list of GAAP concepts, returning the value for a specific fiscal year.
+ */
+function getSecFactValue(factsObj: any, keys: string[], year: number): number | null {
+  if (!factsObj || !factsObj.facts || !factsObj.facts["us-gaap"]) return null;
+  const usGaap = factsObj.facts["us-gaap"];
+  
+  for (const key of keys) {
+    const fact = usGaap[key];
+    if (fact && fact.units) {
+      for (const unitKey of Object.keys(fact.units)) {
+        const list = fact.units[unitKey];
+        if (Array.isArray(list)) {
+          // 1. Look for annual FY data (form 10-K preferred) matching the year
+          const matches10K = list.filter(
+            (item: any) => item && item.fy === year && item.fp === "FY" && item.form === "10-K"
+          );
+          if (matches10K.length > 0) {
+            const sorted = matches10K.sort((a: any, b: any) => new Date(b.filed).getTime() - new Date(a.filed).getTime());
+            return sorted[0].val;
+          }
+
+          // 2. Fallback to any FY data matching the year
+          const matchesFY = list.filter((item: any) => item && item.fy === year && item.fp === "FY");
+          if (matchesFY.length > 0) {
+            const sorted = matchesFY.sort((a: any, b: any) => new Date(b.filed).getTime() - new Date(a.filed).getTime());
+            return sorted[0].val;
+          }
+
+          // 3. Fallback to any data matching the year
+          const matchesYear = list.filter((item: any) => item && item.fy === year);
+          if (matchesYear.length > 0) {
+            const sorted = matchesYear.sort((a: any, b: any) => new Date(b.filed).getTime() - new Date(a.filed).getTime());
+            return sorted[0].val;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Extracts all fiscal years available in SEC facts.
+ */
+function getSecFactYears(factsObj: any): number[] {
+  const years = new Set<number>();
+  if (factsObj && factsObj.facts && factsObj.facts["us-gaap"]) {
+    const usGaap = factsObj.facts["us-gaap"];
+    const checkKeys = ["NetIncomeLoss", "Revenues", "Assets"];
+    for (const key of checkKeys) {
+      const fact = usGaap[key];
+      if (fact && fact.units) {
+        for (const unitKey of Object.keys(fact.units)) {
+          const list = fact.units[unitKey];
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              if (item && item.fy) {
+                years.add(item.fy);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return Array.from(years).sort((a, b) => b - a);
+}
+
+/**
  * Resolves conflicts across multiple API providers and compiles a clean, normalized CompanyMarketSnapshot.
  */
 export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
-  // Helper to extract a field from profiles in priority: FMP > EODHD > Finnhub
+  const provenance: Record<string, string> = {};
+
+  // Helper to extract a field from profiles in priority: FMP > Finnhub
   const getProfileField = <T>(field: string, defaultValue: T): T => {
-    // FMP profile
     const fmpProfile = bundle.companyProfiles.find(p => p.provider === "FMP")?.data as Record<string, any>;
     if (fmpProfile && fmpProfile[field] !== undefined && fmpProfile[field] !== null) {
       return fmpProfile[field] as T;
     }
-    // EODHD profile / General
-    const eodhdProfile = bundle.companyProfiles.find(p => p.provider === "EODHD")?.data as Record<string, any>;
-    if (eodhdProfile) {
-      if (eodhdProfile[field] !== undefined && eodhdProfile[field] !== null) {
-        return eodhdProfile[field] as T;
-      }
-      if (eodhdProfile.General && eodhdProfile.General[field] !== undefined && eodhdProfile.General[field] !== null) {
-        return eodhdProfile.General[field] as T;
-      }
-    }
-    // Finnhub profile
     const finnhubProfile = bundle.companyProfiles.find(p => p.provider === "Finnhub")?.data as Record<string, any>;
     if (finnhubProfile && finnhubProfile[field] !== undefined && finnhubProfile[field] !== null) {
       return finnhubProfile[field] as T;
@@ -40,10 +99,10 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     sector: getProfileField("sector", null),
     industry: getProfileField("industry", null) || getProfileField("finnhubIndustry", null),
     description: getProfileField("description", null),
-    currency: bundle.company.country === "India" ? "INR" : "USD",
+    currency: (bundle.company.country === "India" || bundle.company.exchange === "NSE" || bundle.company.exchange === "BSE") ? "INR" : "USD",
   };
 
-  // Compile Market Data (priority: FMP > EODHD > Twelve Data > Finnhub)
+  // Compile Market Data
   let price: number | null = null;
   let change: number | null = null;
   let changePercent: number | null = null;
@@ -57,24 +116,23 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
   let pb: number | null = null;
   let eps: number | null = null;
 
-  // Find a quote from FMP
-  const fmpQuote = bundle.quotes.find(q => q.provider === "FMP")?.data as Record<string, any>;
-  const eodhdQuote = bundle.quotes.find(q => q.provider === "EODHD")?.data as Record<string, any>;
-  const tdQuote = bundle.quotes.find(q => q.provider === "Twelve Data")?.data as Record<string, any>;
   const finnhubQuote = bundle.quotes.find(q => q.provider === "Finnhub")?.data as Record<string, any>;
+  const tdQuote = bundle.quotes.find(q => q.provider === "Twelve Data")?.data as Record<string, any>;
+  const avQuote = bundle.quotes.find(q => q.provider === "Alpha Vantage")?.data as Record<string, any>;
+  const fmpQuote = bundle.quotes.find(q => q.provider === "FMP")?.data as Record<string, any>;
 
   const selectQuote = () => {
-    if (fmpQuote) return { q: fmpQuote, p: "FMP" };
-    if (eodhdQuote) return { q: eodhdQuote, p: "EODHD" };
-    if (tdQuote) return { q: tdQuote, p: "Twelve Data" };
-    if (finnhubQuote) return { q: finnhubQuote, p: "Finnhub" };
+    if (finnhubQuote && finnhubQuote.price) return { q: finnhubQuote, p: "Finnhub" };
+    if (tdQuote && tdQuote.price) return { q: tdQuote, p: "Twelve Data" };
+    if (avQuote && avQuote.price) return { q: avQuote, p: "Alpha Vantage" };
+    if (fmpQuote && fmpQuote.price) return { q: fmpQuote, p: "FMP" };
     return null;
   };
 
-  const selected = selectQuote();
-  if (selected) {
-    const q = selected.q;
-    const p = selected.p;
+  const selectedQuote = selectQuote();
+  if (selectedQuote) {
+    const q = selectedQuote.q;
+    const p = selectedQuote.p;
     
     price = parseFloat(q.price || q.close || q.currentPrice || 0) || null;
     change = parseFloat(q.change || 0) || null;
@@ -86,42 +144,50 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     marketCap = parseFloat(q.marketCap || q.mcap || q.market_cap || 0) || null;
     sharesOutstanding = parseFloat(q.sharesOutstanding || q.sharesOutstandingTotal || 0) || null;
     pe = parseFloat(q.pe || q.peRatio || q.p_e || 0) || null;
+
+    provenance["market.price"] = p;
+    provenance["market.volume"] = p;
+    provenance["market.quote"] = p;
   }
 
-  // Fallback PE/PB/EPS if not in quote (from metrics / ratios)
+  // Fallbacks for Market Cap, PE, PB, EPS
+  const finnhubMetrics = bundle.metrics.find(m => m.provider === "Finnhub")?.data as Record<string, any>;
   const fmpMetrics = bundle.metrics.find(m => m.provider === "FMP")?.data as Record<string, any>[];
   const fmpRatios = bundle.ratios.find(r => r.provider === "FMP")?.data as Record<string, any>[];
 
+  if (finnhubMetrics && finnhubMetrics.metric) {
+    const m = finnhubMetrics.metric;
+    if (pe === null) {
+      pe = parseFloat(m["peNormalized"] || m["peTTM"] || 0) || null;
+      if (pe !== null) provenance["market.pe"] = "Finnhub";
+    }
+    if (pb === null) {
+      pb = parseFloat(m["pbAnnual"] || m["pbQuarterly"] || 0) || null;
+      if (pb !== null) provenance["market.pb"] = "Finnhub";
+    }
+    if (marketCap === null) {
+      marketCap = parseFloat(m["marketCapitalization"] || 0) * 1000000 || null; // Finnhub in Millions
+      if (marketCap !== null) provenance["market.marketCap"] = "Finnhub";
+    }
+  }
+
   if (Array.isArray(fmpMetrics) && fmpMetrics.length > 0) {
     const latestMetric = fmpMetrics[0];
-    if (pe === null) pe = parseFloat(latestMetric.peRatio || 0) || null;
-    if (pb === null) pb = parseFloat(latestMetric.pbRatio || 0) || null;
+    if (pe === null) {
+      pe = parseFloat(latestMetric.peRatio || 0) || null;
+      if (pe !== null) provenance["market.pe"] = "FMP";
+    }
+    if (pb === null) {
+      pb = parseFloat(latestMetric.pbRatio || 0) || null;
+      if (pb !== null) provenance["market.pb"] = "FMP";
+    }
   }
   if (Array.isArray(fmpRatios) && fmpRatios.length > 0) {
     const latestRatio = fmpRatios[0];
-    if (pb === null) pb = parseFloat(latestRatio.pbRatio || 0) || null;
-  }
-
-  // EODHD metrics fallback
-  const eodhdFundamentals = bundle.companyProfiles.find(p => p.provider === "EODHD")?.data as Record<string, any>;
-  if (eodhdFundamentals && eodhdFundamentals.Valuation) {
-    const v = eodhdFundamentals.Valuation;
-    if (pe === null) pe = parseFloat(v.TrailingPE || v.ForwardPE || 0) || null;
-    if (pb === null) pb = parseFloat(v.PriceBookMRQ || 0) || null;
-  }
-  if (eodhdFundamentals && eodhdFundamentals.Highlights) {
-    const h = eodhdFundamentals.Highlights;
-    if (marketCap === null) marketCap = parseFloat(h.MarketCapitalization || 0) || null;
-    if (eps === null) eps = parseFloat(h.DilutedEpsTD || h.EPSTrailingTwelveMonths || 0) || null;
-  }
-
-  // Finnhub basic metrics fallback
-  const finnhubMetrics = bundle.metrics.find(m => m.provider === "Finnhub")?.data as Record<string, any>;
-  if (finnhubMetrics && finnhubMetrics.metric) {
-    const m = finnhubMetrics.metric;
-    if (pe === null) pe = parseFloat(m["peNormalized"] || m["peTTM"] || 0) || null;
-    if (pb === null) pb = parseFloat(m["pbAnnual"] || m["pbQuarterly"] || 0) || null;
-    if (marketCap === null) marketCap = parseFloat(m["marketCapitalization"] || 0) * 1000000 || null; // Finnhub in Millions
+    if (pb === null) {
+      pb = parseFloat(latestRatio.pbRatio || 0) || null;
+      if (pb !== null) provenance["market.pb"] = "FMP";
+    }
   }
 
   const market: MarketData = {
@@ -143,17 +209,19 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
   let return30dPercent: number | null = null;
   let historyLength = 0;
 
-  const fmpHistory = bundle.historicalPrices.find(h => h.provider === "FMP")?.data as Record<string, any>[];
   const tdHistory = bundle.historicalPrices.find(h => h.provider === "Twelve Data")?.data as Record<string, any>[];
-  const eodhdHistory = bundle.historicalPrices.find(h => h.provider === "EODHD")?.data as Record<string, any>[];
+  const avHistory = bundle.historicalPrices.find(h => h.provider === "Alpha Vantage")?.data as Record<string, any>[];
+  const fmpHistory = bundle.historicalPrices.find(h => h.provider === "FMP")?.data as Record<string, any>[];
 
-  const selectedHistory = fmpHistory || tdHistory || eodhdHistory;
+  const selectedHistory = tdHistory || avHistory || fmpHistory;
+  if (selectedHistory) {
+    provenance["history"] = tdHistory ? "Twelve Data" : avHistory ? "Alpha Vantage" : "FMP";
+  }
+
   if (Array.isArray(selectedHistory) && selectedHistory.length > 1) {
     historyLength = selectedHistory.length;
-    // History usually sorted newest to oldest or vice-versa. Let's make sure.
     const prices = selectedHistory.map(item => parseFloat(item.close || item.price || 0)).filter(p => p > 0);
     if (prices.length > 1) {
-      // Find oldest and newest
       const newest = prices[0];
       const oldest = prices[prices.length - 1];
       if (oldest > 0) {
@@ -170,56 +238,74 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
   // Compile Fundamentals (last 3 years)
   const financialsMap: Record<number, Partial<FundamentalPeriod>> = {};
 
-  const addStatementData = (stmtList: any[], type: "income" | "balance" | "cashflow") => {
-    if (!Array.isArray(stmtList)) return;
-    for (const item of stmtList) {
-      const yearStr = item.calendarYear || item.date?.substring(0, 4) || item.year;
-      const year = parseInt(yearStr);
-      if (isNaN(year)) continue;
+  const secFacts = bundle.financialStatements.find(s => s.provider === "SEC EDGAR" && s.endpoint === "Company Facts")?.data as Record<string, any>;
+  
+  if (secFacts && secFacts.facts) {
+    provenance["financials"] = "SEC EDGAR";
+    const years = getSecFactYears(secFacts);
+    for (const year of years) {
+      const rev = getSecFactValue(secFacts, ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet", "SalesRevenueGoodsNet"], year);
+      const netInc = getSecFactValue(secFacts, ["NetIncomeLoss"], year);
+      const opsCash = getSecFactValue(secFacts, ["NetCashProvidedByUsedInOperatingActivities"], year);
+      const capEx = getSecFactValue(secFacts, ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"], year);
+      const assets = getSecFactValue(secFacts, ["Assets"], year);
+      const liab = getSecFactValue(secFacts, ["Liabilities", "LiabilitiesAndStockholdersEquity"], year);
 
-      if (!financialsMap[year]) {
-        financialsMap[year] = { year };
-      }
-
-      const f = financialsMap[year];
-      if (type === "income") {
-        f.revenue = parseFloat(item.revenue || item.totalRevenue || 0) || f.revenue || null;
-        f.netIncome = parseFloat(item.netIncome || item.net_income || 0) || f.netIncome || null;
-      } else if (type === "balance") {
-        f.totalAssets = parseFloat(item.totalAssets || 0) || f.totalAssets || null;
-        f.totalLiabilities = parseFloat(item.totalLiabilities || 0) || f.totalLiabilities || null;
-      } else if (type === "cashflow") {
-        f.operatingCashFlow = parseFloat(item.operatingCashFlow || item.netCashProvidedByOperatingActivities || 0) || f.operatingCashFlow || null;
-        f.freeCashFlow = parseFloat(item.freeCashFlow || 0) || f.freeCashFlow || null;
-      }
+      financialsMap[year] = {
+        year,
+        revenue: rev,
+        netIncome: netInc,
+        operatingCashFlow: opsCash,
+        freeCashFlow: (opsCash !== null && capEx !== null) ? (opsCash - capEx) : opsCash,
+        totalAssets: assets,
+        totalLiabilities: liab,
+        debtToEquity: null,
+        roe: null,
+      };
     }
-  };
+  } else {
+    // Fallback: FMP statement collections
+    const fmpIncome = bundle.financialStatements.find(s => s.provider === "FMP" && s.endpoint.includes("Income"))?.data as any[];
+    const fmpBalance = bundle.financialStatements.find(s => s.provider === "FMP" && s.endpoint.includes("Balance"))?.data as any[];
+    const fmpCashFlow = bundle.financialStatements.find(s => s.provider === "FMP" && s.endpoint.includes("Cash"))?.data as any[];
 
-  // FMP statement collections
-  const fmpIncome = bundle.financialStatements.find(s => s.provider === "FMP" && s.endpoint.includes("Income"))?.data as any[];
-  const fmpBalance = bundle.financialStatements.find(s => s.provider === "FMP" && s.endpoint.includes("Balance"))?.data as any[];
-  const fmpCashFlow = bundle.financialStatements.find(s => s.provider === "FMP" && s.endpoint.includes("Cash"))?.data as any[];
+    const addStatementData = (stmtList: any[], type: "income" | "balance" | "cashflow") => {
+      if (!Array.isArray(stmtList)) return;
+      provenance["financials"] = "FMP";
+      for (const item of stmtList) {
+        const yearStr = item.calendarYear || item.date?.substring(0, 4) || item.year;
+        const year = parseInt(yearStr);
+        if (isNaN(year)) continue;
 
-  addStatementData(fmpIncome, "income");
-  addStatementData(fmpBalance, "balance");
-  addStatementData(fmpCashFlow, "cashflow");
+        if (!financialsMap[year]) {
+          financialsMap[year] = { year };
+        }
 
-  // EODHD statement collections
-  const eodhdIncome = bundle.financialStatements.find(s => s.provider === "EODHD" && s.endpoint.includes("Income"))?.data as any[];
-  const eodhdBalance = bundle.financialStatements.find(s => s.provider === "EODHD" && s.endpoint.includes("Balance"))?.data as any[];
-  const eodhdCashFlow = bundle.financialStatements.find(s => s.provider === "EODHD" && s.endpoint.includes("Cash"))?.data as any[];
+        const f = financialsMap[year];
+        if (type === "income") {
+          f.revenue = parseFloat(item.revenue || item.totalRevenue || 0) || f.revenue || null;
+          f.netIncome = parseFloat(item.netIncome || item.net_income || 0) || f.netIncome || null;
+        } else if (type === "balance") {
+          f.totalAssets = parseFloat(item.totalAssets || 0) || f.totalAssets || null;
+          f.totalLiabilities = parseFloat(item.totalLiabilities || 0) || f.totalLiabilities || null;
+        } else if (type === "cashflow") {
+          f.operatingCashFlow = parseFloat(item.operatingCashFlow || item.netCashProvidedByOperatingActivities || 0) || f.operatingCashFlow || null;
+          f.freeCashFlow = parseFloat(item.freeCashFlow || 0) || f.freeCashFlow || null;
+        }
+      }
+    };
 
-  addStatementData(eodhdIncome, "income");
-  addStatementData(eodhdBalance, "balance");
-  addStatementData(eodhdCashFlow, "cashflow");
+    addStatementData(fmpIncome, "income");
+    addStatementData(fmpBalance, "balance");
+    addStatementData(fmpCashFlow, "cashflow");
+  }
 
   // Fill Metrics like Debt to Equity, ROE per year
   for (const year of Object.keys(financialsMap).map(Number)) {
     const f = financialsMap[year];
-    // ROE calculation or retrieval
-    // Try FMP metrics or ratios first
-    const metricItem = fmpMetrics?.find(m => parseInt(m.calendarYear) === year);
-    const ratioItem = fmpRatios?.find(r => parseInt(r.calendarYear) === year);
+
+    const metricItem = fmpMetrics?.find(m => parseInt(m.calendarYear || m.year) === year);
+    const ratioItem = fmpRatios?.find(r => parseInt(r.calendarYear || r.year) === year);
 
     if (metricItem) {
       f.debtToEquity = parseFloat(metricItem.debtToEquity || 0) || null;
@@ -230,7 +316,7 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     }
 
     // Mathematical Fallback for ROE: netIncome / (totalAssets - totalLiabilities)
-    if (f.roe === null && f.netIncome !== null && f.netIncome !== undefined && f.totalAssets && f.totalLiabilities) {
+    if (f.roe === null && typeof f.netIncome === "number" && f.totalAssets && f.totalLiabilities) {
       const equity = f.totalAssets - f.totalLiabilities;
       if (equity > 0) {
         f.roe = f.netIncome / equity;
@@ -278,33 +364,15 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     }
   }
 
-  // Compile Web Context
-  let answer: string | null = null;
-  const webResults: { title: string; url: string; content: string }[] = [];
-
-  const tavilyData = bundle.webResearch.find(w => w.provider === "Tavily")?.data as Record<string, any>;
-  if (tavilyData) {
-    answer = tavilyData.answer || null;
-    if (Array.isArray(tavilyData.results)) {
-      for (const res of tavilyData.results) {
-        webResults.push({
-          title: res.title || "Web Search Result",
-          url: res.url || "",
-          content: res.content || "",
-        });
-      }
-    }
-  }
-
+  // Compile Web Context (empty now since Tavily is disabled)
   const web: WebContext = {
-    answer,
-    results: webResults.slice(0, 5),
+    answer: null,
+    results: [],
   };
 
   // Compile Provider Endpoint Statuses
-  const providerNames = ["FMP", "Finnhub", "Twelve Data", "EODHD", "NewsAPI", "Tavily", "Alpha Vantage"];
+  const providerNames = ["FMP", "Finnhub", "Twelve Data", "SEC EDGAR", "NewsAPI", "Alpha Vantage"];
   const providers: ProviderStatus[] = providerNames.map(provider => {
-    // Find all results matching this provider
     const results = bundle.quotes.concat(
       bundle.companyProfiles,
       bundle.financialStatements,
@@ -365,5 +433,6 @@ export function buildSnapshot(bundle: EvidenceBundle): CompanyMarketSnapshot {
     news: news.slice(0, 10),
     web,
     providers,
+    provenance,
   };
 }

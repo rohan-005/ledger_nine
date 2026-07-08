@@ -12,7 +12,11 @@ export type ProviderEndpointStatus =
   | "provider_error"
   | "plan_limited"
   | "plan_limit"
-  | "malformed_response";
+  | "malformed_response"
+  | "permission_error"
+  | "unsupported_market"
+  | "unsupported_symbol"
+  | "not_applicable";
 
 export interface EndpointResult {
   provider: string;

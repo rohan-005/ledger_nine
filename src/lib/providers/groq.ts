@@ -3,8 +3,35 @@ import Groq from "groq-sdk";
 import { getGroqApiKey } from "@/src/lib/env";
 import { EvidenceBundle } from "../research/buildEvidenceBundle";
 import { CompanyMarketSnapshot, SignalsBreakdown } from "../../types/snapshot";
-import { LLMAnalysisResult, analysisSchema } from "./gemini";
+import { z } from "zod";
 import { compactEvidenceBundle } from "../research/compactPayload";
+
+export const analysisSchema = z.object({
+  companySummary: z.string(),
+  financialInterpretation: z.string(),
+  marketInterpretation: z.string(),
+  newsInterpretation: z.string(),
+  webResearchInterpretation: z.string(),
+  strengths: z.array(z.string()),
+  concerns: z.array(z.string()),
+  conflicts: z.array(z.string()),
+  evidenceGaps: z.array(z.string()),
+  overallSummary: z.string(),
+  citedEvidenceIds: z.array(z.string()),
+  verdict: z.enum(["INVEST", "WATCH", "PASS"]),
+  finalScore: z.number().min(0).max(100),
+});
+
+export type AnalysisOutput = z.infer<typeof analysisSchema>;
+
+export interface LLMAnalysisResult {
+  provider: "groq" | "deterministic";
+  status: "success" | "rate_limit" | "auth_error" | "timeout" | "network_error" | "schema_failure" | "provider_error" | "not_called";
+  durationMs: number;
+  model: string;
+  data: AnalysisOutput | null;
+  message?: string;
+}
 
 const getApiKey = () => {
   try {
@@ -61,12 +88,15 @@ export async function runGroqAnalysis(
     } = signals;
 
     const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the compacted company data bundle, local normalized snapshot, and analytical signals, then return a structured JSON response matching the required schema.
-CRITICAL RULES:
-1. You must NOT invent missing values. If a value is absent from the evidence, state that it is unavailable. Never infer or fabricate a financial value.
-2. Ground every interpretation in the provided evidence. Cite evidence IDs (e.g. "ev_1", "ev_2") in the citedEvidenceIds array.
-3. Identify conflicts between providers (e.g. quote discrepancies or trend disagreements) and output them in the conflicts array.
-4. List any key metrics or periods missing from the evidence in the evidenceGaps array.
-5. Review the calculated analytical signals (Price Momentum, Valuation, Financial Quality, News Sentiment, Data Confidence). Synthesize these facts to make an independent evidence-grounded judgment and output a qualitative "verdict" (strictly "INVEST", "WATCH", or "PASS") and a synthesized "finalScore" (0-100) representing your own professional analysis. Do not base your output on any external deterministic verdict.
+
+CRITICAL ROLE AND RULES:
+1. STRICTLY QUALITATIVE ANALYSIS: You must NEVER invent or extrapolate any numerical facts (such as stock prices, EPS, revenues, profits, P/E, or cash flow ratios).
+2. ONLY interpret the news, events, and qualitative textual evidence provided to you.
+3. If any financial or market value is absent from the evidence, state that it is unavailable. Never infer or fabricate a financial value.
+4. Ground every interpretation in the provided evidence. Cite evidence IDs (e.g. "ev_1", "ev_2") in the citedEvidenceIds array.
+5. Identify conflicts between providers (e.g. trend disagreements or news contradictions) and output them in the conflicts array.
+6. List any key metrics or periods missing from the evidence in the evidenceGaps array.
+7. Synthesize these facts to make an independent evidence-grounded judgment and output a qualitative "verdict" (strictly "INVEST", "WATCH", or "PASS") and a synthesized "finalScore" (0-100) representing your own professional analysis. Do not base your output on any external deterministic verdict.
 
 YOUR RESPONSE MUST BE VALID JSON CONFORMING EXACTLY TO THIS SCHEMA:
 {

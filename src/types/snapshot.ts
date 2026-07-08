@@ -70,6 +70,7 @@ export interface CompanyMarketSnapshot {
   news: Article[];
   web: WebContext;
   providers: ProviderStatus[];
+  provenance?: Record<string, string>;
 }
 
 export interface SignalsBreakdown {

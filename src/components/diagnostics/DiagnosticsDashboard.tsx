@@ -41,7 +41,6 @@ export default function DiagnosticsDashboard() {
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
   // Fallback Simulation state
-  const [simulateGemini, setSimulateGemini] = useState<string>("");
   const [simulateGroq, setSimulateGroq] = useState<string>("");
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -154,13 +153,12 @@ export default function DiagnosticsDashboard() {
       setLoadingStep("4. Compiling factual evidence bundle and redacting sensitive parameters...");
 
       await new Promise((r) => setTimeout(r, 400));
-      setLoadingStep("5. Running LLM analysis fallback chain (Gemini -> Groq -> Deterministic)...");
+      setLoadingStep("5. Running Groq AI qualitative analysis...");
 
       const bodyPayload: any = { company: selectedCompany };
-      if (simulateGemini || simulateGroq) {
+      if (simulateGroq) {
         bodyPayload.simulate = {};
-        if (simulateGemini) bodyPayload.simulate.gemini = simulateGemini;
-        if (simulateGroq) bodyPayload.simulate.groq = simulateGroq;
+        bodyPayload.simulate.groq = simulateGroq;
       }
 
       const res = await fetch("/api/research/fetch", {
@@ -375,37 +373,20 @@ export default function DiagnosticsDashboard() {
             <span className="text-2xs font-bold text-foreground-secondary uppercase tracking-wider block mb-2">
               Developer LLM Fallback Simulation:
             </span>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-5xs font-bold text-foreground-muted uppercase">Simulate Gemini Status</label>
-                <select
-                  value={simulateGemini}
-                  onChange={(e) => setSimulateGemini(e.target.value)}
-                  className="w-full text-xs px-2 py-1.5 bg-background border border-border rounded-lg focus:outline-none"
-                >
-                  <option value="">Normal (Live API calls)</option>
-                  <option value="rate_limit">Rate Limit (429)</option>
-                  <option value="auth_error">Auth Error (Invalid API Key)</option>
-                  <option value="timeout">Timeout</option>
-                  <option value="schema_failure">Schema Validation Failure</option>
-                  <option value="provider_error">General Provider Error</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-5xs font-bold text-foreground-muted uppercase">Simulate Groq Status</label>
-                <select
-                  value={simulateGroq}
-                  onChange={(e) => setSimulateGroq(e.target.value)}
-                  className="w-full text-xs px-2 py-1.5 bg-background border border-border rounded-lg focus:outline-none"
-                >
-                  <option value="">Normal (Live API calls)</option>
-                  <option value="rate_limit">Rate Limit (429)</option>
-                  <option value="auth_error">Auth Error (Invalid API Key)</option>
-                  <option value="timeout">Timeout</option>
-                  <option value="schema_failure">Schema Validation Failure</option>
-                  <option value="provider_error">General Provider Error</option>
-                </select>
-              </div>
+            <div className="space-y-1">
+              <label className="text-5xs font-bold text-foreground-muted uppercase">Simulate Groq Status</label>
+              <select
+                value={simulateGroq}
+                onChange={(e) => setSimulateGroq(e.target.value)}
+                className="w-full text-xs px-2 py-1.5 bg-background border border-border rounded-lg focus:outline-none"
+              >
+                <option value="">Normal (Live API calls)</option>
+                <option value="rate_limit">Rate Limit (429)</option>
+                <option value="auth_error">Auth Error (Invalid API Key)</option>
+                <option value="timeout">Timeout</option>
+                <option value="schema_failure">Schema Validation Failure</option>
+                <option value="provider_error">General Provider Error</option>
+              </select>
             </div>
           </div>
         </div>
@@ -500,7 +481,7 @@ export default function DiagnosticsDashboard() {
                     <div className="space-y-1">
                       <h3 className="text-sm font-bold text-foreground">AI Analysis Synthesis Unavailable</h3>
                       <p className="text-xs text-foreground-secondary max-w-md mx-auto leading-relaxed">
-                        Both primary (Gemini) and fallback (Groq) models failed to respond with a schema-conforming analysis. Pre-calculated mathematical signals and raw provider health statuses remain fully operational.
+                        The Groq AI analysis failed to respond with a schema-conforming analysis. Pre-calculated mathematical signals and raw provider health statuses remain fully operational.
                       </p>
                     </div>
                   </div>
@@ -533,19 +514,13 @@ export default function DiagnosticsDashboard() {
                     <div>
                       <h2 className="text-lg font-black text-foreground">INVESTMENT ASSESSMENT</h2>
                       <p className="text-xs text-foreground-muted mt-0.5">
-                        Qualitative synthesis compiled by specialist model: <span className="font-bold text-foreground uppercase">{pipelineResult.analysisRunResult.activeProvider}</span>
+                        Qualitative synthesis compiled by specialist model: <span className="font-bold text-foreground uppercase">Groq</span>
                       </p>
                     </div>
                     
                     {/* Active model badge */}
-                    <div className={`px-2.5 py-1 rounded-lg border text-4xs font-mono font-bold uppercase ${
-                      pipelineResult.analysisRunResult.activeProvider === "gemini"
-                        ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                        : pipelineResult.analysisRunResult.activeProvider === "groq"
-                        ? "bg-orange-500/10 text-orange-600 border-orange-500/20"
-                        : "bg-purple-500/10 text-purple-600 border-purple-500/20"
-                    }`}>
-                      {pipelineResult.analysisRunResult.activeProvider}
+                    <div className="px-2.5 py-1 rounded-lg border text-4xs font-mono font-bold uppercase bg-orange-500/10 text-orange-600 border-orange-500/20">
+                      Groq
                     </div>
                   </div>
 
@@ -610,13 +585,8 @@ export default function DiagnosticsDashboard() {
                   </div>
 
                   {/* Resolved Specialist models details */}
-                  <div className="grid grid-cols-2 gap-2 text-6xs text-foreground-muted border-t border-border pt-4">
-                    <div>
-                      Gemini status: <span className="font-bold">{pipelineResult.analysisRunResult.gemini?.status}</span> ({pipelineResult.analysisRunResult.gemini?.durationMs}ms)
-                    </div>
-                    <div className="text-right">
-                      Groq status: <span className="font-bold">{pipelineResult.analysisRunResult.groq?.status}</span> ({pipelineResult.analysisRunResult.groq?.durationMs}ms)
-                    </div>
+                  <div className="text-6xs text-foreground-muted border-t border-border pt-4">
+                    Groq status: <span className="font-bold">{pipelineResult.analysisRunResult.groq?.status}</span> ({pipelineResult.analysisRunResult.groq?.durationMs}ms)
                   </div>
                 </>
               )}

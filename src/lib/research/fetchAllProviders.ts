@@ -4,9 +4,8 @@ import {
   fmpProvider,
   finnhubProvider,
   twelveDataProvider,
-  eodhdProvider,
+  secProvider,
   newsApiProvider,
-  tavilyProvider,
   alphaVantageProvider,
   EndpointResult,
   ProviderSummary,
@@ -23,6 +22,9 @@ interface DiagnosticsRunPayload {
   providers: ProviderSummary[];
   allEndpoints: EndpointResult[];
 }
+
+// In-memory cache to skip future FMP calls once plan_limit is detected
+let fmpIsPlanLimited = false;
 
 /**
  * Resolves symbol candidate sequentially for a given provider validation check.
@@ -49,11 +51,10 @@ async function resolveSymbolAndVerify(
           tried,
         };
       }
-      // If error is code-related (e.g. rate limit, invalid key), stop candidate checking
       if (result.status === "rate_limit" || result.status === "auth_error") {
         return {
           resolvedSymbol: null,
-          verifiedResult: result, // Return the rate limit / auth error result
+          verifiedResult: result,
           tried,
         };
       }
@@ -116,7 +117,7 @@ async function resolveTwelveDataSymbol(
 }
 
 /**
- * Runs the full diagnostic pipeline on all 6 providers in parallel.
+ * Runs the capability-aware conditional diagnostics pipeline.
  */
 export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<DiagnosticsRunPayload> {
   const startedAt = new Date().toISOString();
@@ -124,106 +125,230 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
 
   const candidates = getProviderCandidates(company);
 
-  // 1. Sequentially resolve symbol candidates for each provider in parallel.
-  // We run candidate resolution for FMP, Finnhub, Twelve Data, EODHD, Alpha Vantage in parallel.
-  const [fmpResolution, finnhubResolution, twelveDataResolution, eodhdResolution, alphaVantageResolution] = await Promise.all([
-    resolveSymbolAndVerify("FMP", candidates.fmp, (cand, tried) =>
-      fmpProvider.getProfile(cand, tried)
-    ),
+  const display = company.displayTicker.toUpperCase().trim();
+  const exchange = (company.exchange || "").trim().toUpperCase();
+  const country = (company.country || "").trim().toLowerCase();
+  const isIndia = country === "india" || exchange === "NSE" || exchange === "BSE";
+
+  const allEndpoints: EndpointResult[] = [];
+
+  // --- 1. RESOLVE SYMBOLS (FINNHUB & TWELVE DATA) ---
+  const [finnhubResolution, twelveDataResolution] = await Promise.all([
     resolveSymbolAndVerify("Finnhub", candidates.finnhub, (cand, tried) =>
       finnhubProvider.getProfile(cand, tried)
     ),
     resolveTwelveDataSymbol(company),
-    resolveSymbolAndVerify("EODHD", candidates.eodhd, (cand, tried) =>
-      eodhdProvider.getQuote(cand, tried)
-    ),
-    resolveSymbolAndVerify("Alpha Vantage", candidates.alphaVantage, (cand, tried) =>
-      alphaVantageProvider.getQuote(cand, tried)
-    ),
   ]);
 
-  // Store resolved symbols
-  const fmpSymbol = fmpResolution.resolvedSymbol;
+  if (finnhubResolution.verifiedResult) allEndpoints.push(finnhubResolution.verifiedResult);
+  if (twelveDataResolution.verifiedResult) allEndpoints.push(twelveDataResolution.verifiedResult);
+
   const finnhubSymbol = finnhubResolution.resolvedSymbol;
   const twelveDataSymbol = twelveDataResolution.resolvedSymbol;
-  const eodhdSymbol = eodhdResolution.resolvedSymbol;
-  const alphaVantageSymbol = alphaVantageResolution.resolvedSymbol;
 
-  // Collect the validation results to output them
-  const initialEndpoints: EndpointResult[] = [];
-  if (fmpResolution.verifiedResult) initialEndpoints.push(fmpResolution.verifiedResult);
-  if (finnhubResolution.verifiedResult) initialEndpoints.push(finnhubResolution.verifiedResult);
-  if (twelveDataResolution.verifiedResult) initialEndpoints.push(twelveDataResolution.verifiedResult);
-  if (eodhdResolution.verifiedResult) initialEndpoints.push(eodhdResolution.verifiedResult);
-  if (alphaVantageResolution.verifiedResult) initialEndpoints.push(alphaVantageResolution.verifiedResult);
+  // --- 2. CONDITIONAL MARKET/QUOTE FETCHING ---
+  let needMarketData = true;
+  let finnhubQuoteRes: EndpointResult | null = null;
+  let twelveDataQuoteRes: EndpointResult | null = null;
+  let alphaVantageQuoteRes: EndpointResult | null = null;
 
-  // 2. Prepare remaining symbol-dependent endpoint tasks
-  const pendingTasks: Promise<EndpointResult | EndpointResult[]>[] = [];
-
-  // FMP remaining tasks (9 endpoints)
-  if (fmpSymbol) {
-    pendingTasks.push(fmpProvider.getQuote(fmpSymbol));
-    pendingTasks.push(fmpProvider.getIncomeStatements(fmpSymbol));
-    pendingTasks.push(fmpProvider.getBalanceSheets(fmpSymbol));
-    pendingTasks.push(fmpProvider.getCashFlowStatements(fmpSymbol));
-    pendingTasks.push(fmpProvider.getKeyMetrics(fmpSymbol));
-    pendingTasks.push(fmpProvider.getFinancialRatios(fmpSymbol));
-    pendingTasks.push(fmpProvider.getHistoricalPrice(fmpSymbol));
-    pendingTasks.push(fmpProvider.getPeers(fmpSymbol));
-  }
-
-  // Finnhub remaining tasks (5 endpoints)
+  // Primary: Finnhub
   if (finnhubSymbol) {
-    pendingTasks.push(finnhubProvider.getQuote(finnhubSymbol));
-    pendingTasks.push(finnhubProvider.getBasicMetrics(finnhubSymbol));
-    pendingTasks.push(finnhubProvider.getPeers(finnhubSymbol));
-    pendingTasks.push(finnhubProvider.getCompanyNews(finnhubSymbol));
-  }
-
-  // Twelve Data remaining tasks (1 endpoint)
-  if (twelveDataSymbol) {
-    pendingTasks.push(twelveDataProvider.getTimeSeries(twelveDataSymbol));
-  }
-
-  // EODHD remaining tasks (3 endpoints)
-  if (eodhdSymbol) {
-    pendingTasks.push(eodhdProvider.getEodHistory(eodhdSymbol));
-    pendingTasks.push(eodhdProvider.getFundamentals(eodhdSymbol));
-  }
-
-  // Alpha Vantage remaining tasks (1 endpoint)
-  if (alphaVantageSymbol) {
-    pendingTasks.push(alphaVantageProvider.getTimeSeries(alphaVantageSymbol));
-  }
-
-  // NewsAPI task (query-based)
-  pendingTasks.push(newsApiProvider.getRecentArticles(company.name));
-
-  // Tavily task (5 query-based endpoints)
-  pendingTasks.push(tavilyProvider.getDiagnostics(company.name));
-
-  // 3. Execute all remaining tasks in parallel with Promise.allSettled
-  const settled = await Promise.allSettled(pendingTasks);
-
-  // Flatten and process results
-  const additionalEndpoints: EndpointResult[] = [];
-  settled.forEach((res) => {
-    if (res.status === "fulfilled") {
-      const val = res.value;
-      if (Array.isArray(val)) {
-        additionalEndpoints.push(...val);
-      } else {
-        additionalEndpoints.push(val);
-      }
-    } else {
-      logger.error("Pipeline: Unexpected task rejection in settled Promise.all", res.reason);
+    finnhubQuoteRes = await finnhubProvider.getQuote(finnhubSymbol);
+    allEndpoints.push(finnhubQuoteRes);
+    if (finnhubQuoteRes.ok && finnhubQuoteRes.response.data) {
+      needMarketData = false;
     }
-  });
+  }
 
-  const allEndpoints = [...initialEndpoints, ...additionalEndpoints];
+  // Secondary: Twelve Data
+  if (needMarketData && twelveDataSymbol) {
+    if (twelveDataResolution.verifiedResult && twelveDataResolution.verifiedResult.ok && twelveDataResolution.verifiedResult.response.data) {
+      // Already fetched quote in Twelve Data resolution step
+      needMarketData = false;
+    } else {
+      twelveDataQuoteRes = await twelveDataProvider.getQuote(twelveDataSymbol);
+      allEndpoints.push(twelveDataQuoteRes);
+      if (twelveDataQuoteRes.ok && twelveDataQuoteRes.response.data) {
+        needMarketData = false;
+      }
+    }
+  }
 
-  // 4. Construct provider summaries
-  const providerNames = ["FMP", "Finnhub", "Twelve Data", "EODHD", "NewsAPI", "Tavily", "Alpha Vantage"];
+  // Fallback: Alpha Vantage (last resort)
+  let alphaVantageSymbol: string | null = null;
+  if (needMarketData) {
+    const avResolution = await resolveSymbolAndVerify("Alpha Vantage", candidates.alphaVantage, (cand, tried) =>
+      alphaVantageProvider.getQuote(cand, tried)
+    );
+    if (avResolution.verifiedResult) {
+      allEndpoints.push(avResolution.verifiedResult);
+      if (avResolution.verifiedResult.ok && avResolution.verifiedResult.response.data) {
+        alphaVantageSymbol = avResolution.resolvedSymbol;
+        needMarketData = false;
+      }
+    }
+  }
+
+  // --- 3. CONDITIONAL OHLCV/TIME SERIES FETCHING ---
+  let hasHistorical = false;
+
+  // Primary: Twelve Data
+  if (twelveDataSymbol) {
+    const twelveDataTimeSeriesRes = await twelveDataProvider.getTimeSeries(twelveDataSymbol);
+    allEndpoints.push(twelveDataTimeSeriesRes);
+    if (twelveDataTimeSeriesRes.ok && twelveDataTimeSeriesRes.response.data) {
+      hasHistorical = true;
+    }
+  }
+
+  // Fallback: Alpha Vantage (only if Twelve Data time series failed/was empty)
+  if (!hasHistorical) {
+    // If not resolved during quote fallback, resolve now
+    if (!alphaVantageSymbol) {
+      const avResolution = await resolveSymbolAndVerify("Alpha Vantage", candidates.alphaVantage, (cand, tried) =>
+        alphaVantageProvider.getQuote(cand, tried)
+      );
+      if (avResolution.verifiedResult) {
+        allEndpoints.push(avResolution.verifiedResult);
+        if (avResolution.verifiedResult.ok) {
+          alphaVantageSymbol = avResolution.resolvedSymbol;
+        }
+      }
+    }
+
+    if (alphaVantageSymbol) {
+      const avTimeSeriesRes = await alphaVantageProvider.getTimeSeries(alphaVantageSymbol);
+      allEndpoints.push(avTimeSeriesRes);
+    }
+  }
+
+  // --- 4. SEC EDGAR (US Filings - US ONLY) ---
+  if (isIndia) {
+    // Return not_applicable immediately for Indian companies
+    allEndpoints.push({
+      provider: "SEC EDGAR",
+      endpointName: "Submissions",
+      ok: false,
+      status: "not_applicable",
+      durationMs: 0,
+      httpStatus: null,
+      request: {
+        endpoint: "Submissions",
+        method: "GET",
+        symbolRequested: display,
+        symbolUsed: null,
+        candidatesTried: [],
+        query: null,
+      },
+      response: { recordCount: null, data: null, raw: null },
+      error: { code: null, message: "SEC EDGAR is not applicable for Indian companies" },
+      startedAt,
+      completedAt: new Date().toISOString(),
+    });
+    allEndpoints.push({
+      provider: "SEC EDGAR",
+      endpointName: "Company Facts",
+      ok: false,
+      status: "not_applicable",
+      durationMs: 0,
+      httpStatus: null,
+      request: {
+        endpoint: "Company Facts",
+        method: "GET",
+        symbolRequested: display,
+        symbolUsed: null,
+        candidatesTried: [],
+        query: null,
+      },
+      response: { recordCount: null, data: null, raw: null },
+      error: { code: null, message: "SEC EDGAR is not applicable for Indian companies" },
+      startedAt,
+      completedAt: new Date().toISOString(),
+    });
+  } else {
+    // Fetch submissions and facts in parallel
+    const [subRes, factsRes] = await Promise.all([
+      secProvider.getSubmissions(display, [display]),
+      secProvider.getCompanyFacts(display, [display]),
+    ]);
+    allEndpoints.push(subRes, factsRes);
+  }
+
+  // --- 5. FMP (Optional Enrichment) ---
+  let fmpSymbol: string | null = null;
+  if (fmpIsPlanLimited) {
+    // Instantly append a mocked plan_limit result
+    allEndpoints.push({
+      provider: "FMP",
+      endpointName: "Profile",
+      ok: false,
+      status: "plan_limit",
+      durationMs: 0,
+      httpStatus: null,
+      request: {
+        endpoint: "Profile",
+        method: "GET",
+        symbolRequested: display,
+        symbolUsed: null,
+        candidatesTried: [],
+        query: null,
+      },
+      response: { recordCount: null, data: null, raw: null },
+      error: { code: "plan_limit", message: "FMP is plan-limited for current key" },
+      startedAt,
+      completedAt: new Date().toISOString(),
+    });
+  } else {
+    const fmpResolution = await resolveSymbolAndVerify("FMP", candidates.fmp, (cand, tried) =>
+      fmpProvider.getProfile(cand, tried)
+    );
+    if (fmpResolution.verifiedResult) {
+      allEndpoints.push(fmpResolution.verifiedResult);
+      if (fmpResolution.verifiedResult.status === "plan_limit" || fmpResolution.verifiedResult.status === "plan_limited") {
+        fmpIsPlanLimited = true;
+      }
+    }
+    fmpSymbol = fmpResolution.resolvedSymbol;
+
+    if (fmpSymbol) {
+      const [fmpQuote, fmpMetrics, fmpIncome] = await Promise.all([
+        fmpProvider.getQuote(fmpSymbol),
+        fmpProvider.getKeyMetrics(fmpSymbol),
+        fmpProvider.getIncomeStatements(fmpSymbol),
+      ]);
+      allEndpoints.push(fmpQuote, fmpMetrics, fmpIncome);
+      if (
+        fmpQuote.status === "plan_limit" ||
+        fmpMetrics.status === "plan_limit" ||
+        fmpIncome.status === "plan_limit"
+      ) {
+        fmpIsPlanLimited = true;
+      }
+    }
+  }
+
+  // --- 6. NEWS (Finnhub & NewsAPI) ---
+  const newsTasks: Promise<EndpointResult>[] = [
+    newsApiProvider.getRecentArticles(company.name),
+  ];
+  if (finnhubSymbol) {
+    newsTasks.push(finnhubProvider.getCompanyNews(finnhubSymbol));
+  }
+  const newsResults = await Promise.all(newsTasks);
+  allEndpoints.push(...newsResults);
+
+  // --- 7. ADDITIONAL FINNHUB METRICS ---
+  if (finnhubSymbol) {
+    const finnhubMetrics = await finnhubProvider.getBasicMetrics(finnhubSymbol);
+    allEndpoints.push(finnhubMetrics);
+  }
+
+  const durationMs = Date.now() - startTime;
+  const completedAt = new Date().toISOString();
+
+  // --- 8. BUILD SUMMARIES ---
+  const providerNames = ["FMP", "Finnhub", "Twelve Data", "SEC EDGAR", "NewsAPI", "Alpha Vantage"];
   const providersSummary: ProviderSummary[] = providerNames.map((p) => {
     const endpoints = allEndpoints.filter((e) => e.provider === p);
     const successCount = endpoints.filter((e) => e.ok).length;
@@ -232,7 +357,6 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     let status: ProviderEndpointStatus = "success";
     let durationMs = 0;
 
-    // Check overall status for the provider
     if (totalCount === 0) {
       status = "empty";
     } else {
@@ -241,7 +365,10 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
       const planLimits = endpoints.filter((e) => e.status === "plan_limited" || e.status === "plan_limit");
       const timeouts = endpoints.filter((e) => e.status === "timeout");
       const networkErrors = endpoints.filter((e) => e.status === "network_error");
-      const unsupported = endpoints.filter((e) => e.status === "unsupported");
+      const unsupported = endpoints.filter(
+        (e) => e.status === "unsupported" || e.status === "unsupported_market" || e.status === "unsupported_symbol"
+      );
+      const notApplicable = endpoints.filter((e) => e.status === "not_applicable");
       
       if (rateLimits.length > 0) {
         status = "rate_limit";
@@ -250,10 +377,18 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
       } else if (planLimits.length > 0) {
         status = "plan_limited";
       } else if (successCount === 0) {
-        if (unsupported.length > 0) status = "unsupported";
-        else if (timeouts.length > 0) status = "timeout";
-        else if (networkErrors.length > 0) status = "network_error";
-        else status = "provider_error";
+        if (notApplicable.length === totalCount) {
+          status = "not_applicable";
+        } else if (unsupported.length > 0) {
+          const first = unsupported[0];
+          status = first.status;
+        } else if (timeouts.length > 0) {
+          status = "timeout";
+        } else if (networkErrors.length > 0) {
+          status = "network_error";
+        } else {
+          status = "provider_error";
+        }
       } else if (successCount < totalCount) {
         status = "partial";
       }
@@ -266,19 +401,19 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
 
     if (p === "FMP") {
       symbolUsed = fmpSymbol;
-      tried = fmpResolution.tried;
+      tried = candidates.fmp;
     } else if (p === "Finnhub") {
       symbolUsed = finnhubSymbol;
       tried = finnhubResolution.tried;
     } else if (p === "Twelve Data") {
       symbolUsed = twelveDataSymbol;
       tried = twelveDataResolution.tried;
-    } else if (p === "EODHD") {
-      symbolUsed = eodhdSymbol;
-      tried = eodhdResolution.tried;
+    } else if (p === "SEC EDGAR") {
+      symbolUsed = isIndia ? null : display;
+      tried = [display];
     } else if (p === "Alpha Vantage") {
       symbolUsed = alphaVantageSymbol;
-      tried = alphaVantageResolution.tried;
+      tried = avResolutionTried(allEndpoints);
     }
 
     return {
@@ -291,14 +426,11 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     };
   });
 
-  const durationMs = Date.now() - startTime;
-  const completedAt = new Date().toISOString();
-
-  // Determine overall status
+  // Overall status determination
   let overallStatus: ProviderEndpointStatus = "success";
   const anyRateLimit = providersSummary.some((p) => p.status === "rate_limit");
   const anyAuthError = providersSummary.some((p) => p.status === "auth_error");
-  const allFailed = providersSummary.every((p) => p.status !== "success" && p.status !== "partial");
+  const allFailed = providersSummary.every((p) => p.status !== "success" && p.status !== "partial" && p.status !== "not_applicable");
 
   if (anyRateLimit) {
     overallStatus = "rate_limit";
@@ -306,7 +438,7 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     overallStatus = "auth_error";
   } else if (allFailed) {
     overallStatus = "provider_error";
-  } else if (providersSummary.some((p) => p.status === "partial" || p.status !== "success")) {
+  } else if (providersSummary.some((p) => p.status === "partial" || (p.status !== "success" && p.status !== "not_applicable"))) {
     overallStatus = "partial";
   }
 
@@ -319,4 +451,12 @@ export async function runDiagnosticsPipeline(company: CompanyIdentity): Promise<
     providers: providersSummary,
     allEndpoints,
   };
+}
+
+function avResolutionTried(allEndpoints: EndpointResult[]): string[] {
+  const avEndpoints = allEndpoints.filter((e) => e.provider === "Alpha Vantage");
+  if (avEndpoints.length > 0) {
+    return avEndpoints[0].request.candidatesTried || [];
+  }
+  return [];
 }
