@@ -183,6 +183,27 @@ export default function ResearchPage(props: PageProps) {
     }
   };
 
+  const extractMetadata = (description: string | null) => {
+    if (!description) return { ceo: null, founded: null };
+    let ceo: string | null = null;
+    let founded: string | null = null;
+
+    const ceoMatch = description.match(/(?:CEO|Chief Executive Officer)(?:\s+(?:is|of))?\s+([A-Z][a-z\u00C0-\u00FF\u0100-\u017F]+(?:\s+[A-Z][a-z\u00C0-\u00FF\u0100-\u017F]+){1,2})/);
+    if (ceoMatch) {
+      ceo = ceoMatch[1];
+    } else {
+      const altCeoMatch = description.match(/([A-Z][a-z\u00C0-\u00FF\u0100-\u017F]+(?:\s+[A-Z][a-z\u00C0-\u00FF\u0100-\u017F]+){1,2}),\s*(?:CEO|Chief Executive Officer)/);
+      if (altCeoMatch) ceo = altCeoMatch[1];
+    }
+
+    const foundedMatch = description.match(/founded\s+(?:in|on)\s+(\d{4})/i);
+    if (foundedMatch) {
+      founded = foundedMatch[1];
+    }
+
+    return { ceo, founded };
+  };
+
   // Click citation to scroll and highlight the raw diagnostic evidence item
   const handleCitationClick = (id: string) => {
     setActiveTab("audit");
@@ -254,12 +275,205 @@ export default function ResearchPage(props: PageProps) {
     { id: "price-trend", label: "Price Trend" },
     { id: "financials", label: "Balance & Cash" },
     { id: "news", label: "News Sentiment" },
-    { id: "verdict", label: "Final Verdict" },
+    { id: "evidence", label: "Evidence Balance" },
     { id: "audit", label: "Provider Audit" }
   ];
 
+  const hasAnalysis = analysisRunResult && analysisRunResult.status !== "unavailable" && analysisRunResult.analysis;
+  const verdictStr = hasAnalysis ? analysisRunResult.analysis.verdict : "UNAVAILABLE";
+  const finalScore = hasAnalysis ? analysisRunResult.analysis.finalScore : null;
+  const overallSummary = hasAnalysis 
+    ? (analysisRunResult.analysis.overallSummary || analysisRunResult.analysis.companySummary) 
+    : "AI synthesis verdict is currently unavailable. No qualitative thesis could be generated.";
+  const marketCapFormatted = formatLargeNumber(snapshot.market.marketCap, true, currency);
+
   return (
-    <div className="w-full flex-1 bg-background flex flex-col">
+    <div className="w-full flex-1 bg-background flex flex-col animate-fadeIn">
+      {/* Top Overview & Final Verdict Section (First Viewport) */}
+      <div className="border-b border-border bg-slate-50/50 py-8">
+        <div className="max-w-6xl w-full mx-auto px-6">
+          <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-6">
+            
+            {/* Desktop Layout (Two Column) */}
+            <div className="hidden md:grid grid-cols-12 gap-8 items-stretch">
+              {/* Left Column: Company Overview */}
+              <div className="col-span-7 flex flex-col justify-between space-y-4 border-r border-slate-100 pr-8">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-extrabold text-foreground text-xs uppercase tracking-tight bg-slate-100 border border-border px-2.5 py-0.5 rounded-lg font-mono">
+                      {snapshot.company.ticker}
+                    </span>
+                    <span className="text-2xs text-foreground-secondary font-mono">
+                      {snapshot.company.exchange || "US Exchange"}
+                    </span>
+                  </div>
+                  <h2 className="text-2xl font-black text-foreground mt-1.5 leading-tight">
+                    {snapshot.company.name}
+                  </h2>
+                  
+                  {/* Sector, CEO, Founded */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-foreground-secondary font-medium mt-2">
+                    <span>{snapshot.company.sector || "N/A"} / {snapshot.company.industry || "N/A"}</span>
+                    {(() => {
+                      const { ceo, founded } = extractMetadata(snapshot.company.description);
+                      return (
+                        <>
+                          {ceo && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span>CEO: {ceo}</span>
+                            </>
+                          )}
+                          {founded && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span>Founded: {founded}</span>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Price & Market Cap Row */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100/80">
+                  <div>
+                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Latest Stock Price</span>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-2xl font-black text-foreground font-mono">
+                        {formatCurrency(snapshot.market.price, currency)}
+                      </span>
+                      {snapshot.market.changePercent !== null && (
+                        <span className={`text-8xs font-black font-mono px-1.5 py-0.5 rounded border ${
+                          snapshot.market.changePercent >= 0 
+                            ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" 
+                            : "bg-rose-500/10 text-rose-700 border-rose-500/20"
+                        }`}>
+                          {snapshot.market.changePercent >= 0 ? "+" : ""}
+                          {snapshot.market.changePercent.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Market Cap</span>
+                    <span className="text-xl font-black text-foreground font-mono block mt-1">
+                      {marketCapFormatted}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Final Verdict */}
+              <div className="col-span-5 flex flex-col justify-between space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">Investment Verdict</span>
+                    <div className={`px-5 py-2.5 rounded-xl border text-center font-black text-2xl tracking-widest ${getVerdictStyle(verdictStr)}`}>
+                      {verdictStr}
+                    </div>
+                  </div>
+
+                  <div className="text-right space-y-1">
+                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">Confidence Score</span>
+                    <div className="bg-slate-50 border border-border rounded-xl px-4 py-2 flex flex-col items-center justify-center shadow-inner">
+                      <span className="text-lg font-black text-foreground font-mono">
+                        {finalScore !== null ? finalScore : "N/A"}
+                      </span>
+                      <span className="text-8xs text-foreground-muted uppercase tracking-wider font-bold">out of 100</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5 flex-1 flex flex-col justify-center">
+                  <span className="text-8xs font-black text-foreground-muted uppercase tracking-wider block">Thesis Summary:</span>
+                  <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
+                    {overallSummary}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Layout (Stacked) */}
+            <div className="block md:hidden space-y-4">
+              {/* 1. Company Identity */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-foreground text-9xs uppercase bg-slate-100 border border-border px-2 py-0.5 rounded font-mono">
+                    {snapshot.company.ticker}
+                  </span>
+                  <span className="text-9xs text-foreground-secondary font-mono">
+                    {snapshot.company.exchange || "US Exchange"}
+                  </span>
+                </div>
+                <h2 className="text-lg font-black text-foreground mt-1">
+                  {snapshot.company.name}
+                </h2>
+                <p className="text-9xs text-foreground-secondary font-medium mt-0.5">
+                  {snapshot.company.sector || "N/A"} · {snapshot.company.industry || "N/A"}
+                </p>
+              </div>
+
+              {/* 2. Key Metrics */}
+              <div className="grid grid-cols-2 gap-3 py-2 border-y border-slate-100">
+                <div>
+                  <span className="text-9xs text-foreground-muted uppercase tracking-wider block font-bold">Price</span>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-base font-black text-foreground font-mono">
+                      {formatCurrency(snapshot.market.price, currency)}
+                    </span>
+                    {snapshot.market.changePercent !== null && (
+                      <span className={`text-9xs font-bold font-mono px-1 rounded ${
+                        snapshot.market.changePercent >= 0 
+                          ? "bg-emerald-500/10 text-emerald-700" 
+                          : "bg-rose-500/10 text-rose-700"
+                      }`}>
+                        {snapshot.market.changePercent >= 0 ? "+" : ""}{snapshot.market.changePercent.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-9xs text-foreground-muted uppercase tracking-wider block font-bold">Market Cap</span>
+                  <span className="text-base font-black text-foreground font-mono block mt-0.5">
+                    {marketCapFormatted}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. Final Verdict */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <span className="text-9xs font-bold text-foreground-muted uppercase tracking-wider block mb-1">Verdict</span>
+                  <div className={`py-2 rounded-xl border text-center font-black text-lg tracking-widest ${getVerdictStyle(verdictStr)}`}>
+                    {verdictStr}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-9xs font-bold text-foreground-muted uppercase tracking-wider block mb-1">Score</span>
+                  <div className="bg-slate-50 border border-border rounded-xl px-3 py-1 text-center font-mono">
+                    <span className="text-base font-black text-foreground">
+                      {finalScore !== null ? finalScore : "N/A"}
+                    </span>
+                    <span className="text-9xs text-foreground-muted block font-sans font-bold uppercase">/ 100</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Short Overview */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-1">
+                <span className="text-9xs font-black text-foreground-muted uppercase tracking-wider block">Thesis Summary:</span>
+                <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
+                  {overallSummary}
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
       {/* Sticky Tab Navigation Header */}
       <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-border z-40 shadow-xs">
         <div className="max-w-6xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-4">
@@ -746,15 +960,15 @@ export default function ResearchPage(props: PageProps) {
           </div>
         )}
 
-        {activeTab === "verdict" && (
+        {activeTab === "evidence" && (
           <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-6 animate-fadeIn">
             {analysisRunResult.status === "unavailable" || !analysisRunResult.analysis ? (
               <div className="space-y-6">
                 <div className="flex justify-between items-center border-b border-border pb-4">
                   <div>
-                    <h3 className="text-base font-bold text-foreground">7. Investment Verdict & Synthesis</h3>
+                    <h3 className="text-base font-bold text-foreground">7. Evidence Synthesis & Balance</h3>
                     <p className="text-xs text-foreground-muted mt-0.5">
-                      Qualitative AI synthesis verdict is currently unavailable
+                      Qualitative AI synthesis evidence is currently unavailable
                     </p>
                   </div>
                   <span className="px-2.5 py-1 rounded-lg border text-8xs font-mono font-bold uppercase bg-rose-500/10 text-rose-600 border-rose-500/20">
@@ -801,9 +1015,9 @@ export default function ResearchPage(props: PageProps) {
               <div className="space-y-6">
                 <div className="flex justify-between items-center border-b border-border pb-4">
                   <div>
-                    <h3 className="text-base font-bold text-foreground">7. Final Investment Verdict</h3>
+                    <h3 className="text-base font-bold text-foreground">7. Evidence Synthesis & Balance</h3>
                     <p className="text-2xs text-foreground-secondary mt-0.5">
-                      Qualitative synthesis compiled by specialist model: <span className="font-bold text-foreground uppercase">Groq ({analysisRunResult.model})</span>
+                      Qualitative evidence details compiled by specialist model: <span className="font-bold text-foreground uppercase">Groq{analysisRunResult.model ? ` (${analysisRunResult.model})` : ""}</span>
                     </p>
                   </div>
                   <span className="px-2.5 py-1 rounded-lg border text-8xs font-mono font-bold uppercase bg-orange-500/10 text-orange-600 border-orange-500/20">
@@ -811,37 +1025,8 @@ export default function ResearchPage(props: PageProps) {
                   </span>
                 </div>
 
-                {/* Verdict block */}
-                <div className="flex flex-col sm:flex-row gap-6 items-center py-2">
-                  <div className="text-center space-y-2 shrink-0">
-                    <div className={`w-36 py-4 rounded-2xl text-center border font-black text-xl flex flex-col justify-center items-center gap-1 ${getVerdictStyle(analysisRunResult.analysis.verdict)}`}>
-                      <span className="tracking-wider">{analysisRunResult.analysis.verdict}</span>
-                      <span className="text-8xs opacity-85 font-normal tracking-normal font-sans">
-                        {analysisRunResult.analysis.verdict === "INVEST" && "Supported Evidence"}
-                        {analysisRunResult.analysis.verdict === "PASS" && "Insufficient / Risk"}
-                      </span>
-                    </div>
-                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">Model Synthesis Verdict</span>
-                  </div>
-
-                  <div className="text-center space-y-2 shrink-0">
-                    <div className="w-32 h-20 bg-slate-50 border border-border rounded-2xl flex flex-col justify-center items-center shadow-inner">
-                      <span className="text-2xl font-black text-foreground font-mono">{analysisRunResult.analysis.finalScore}</span>
-                      <span className="text-8xs text-foreground-muted uppercase tracking-wider font-bold">out of 100</span>
-                    </div>
-                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">Synthesized Score</span>
-                  </div>
-
-                  <div className="flex-1 bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5">
-                    <span className="text-8xs font-black text-foreground-muted uppercase tracking-wider block">Investment Thesis:</span>
-                    <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
-                      {analysisRunResult.analysis.overallSummary || analysisRunResult.analysis.companySummary}
-                    </p>
-                  </div>
-                </div>
-
                 {/* Strengths & Concerns */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="border border-emerald-500/10 rounded-xl p-4 bg-emerald-500/5 space-y-2">
                     <span className="font-extrabold text-xs text-emerald-800 uppercase block tracking-wider flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
