@@ -1,25 +1,9 @@
 import { ConfigurationError } from "./errors";
 
-export function getGeminiApiKey(): string {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) {
-    throw new ConfigurationError("GEMINI_API_KEY is not configured in environment variables.");
-  }
-  return key;
-}
-
 export function getGroqApiKey(): string {
   const key = process.env.GROQ_API_KEY;
   if (!key) {
     throw new ConfigurationError("GROQ_API_KEY is not configured in environment variables.");
-  }
-  return key;
-}
-
-export function getTavilyApiKey(): string {
-  const key = process.env.TAVILY_API_KEY;
-  if (!key) {
-    throw new ConfigurationError("TAVILY_API_KEY is not configured in environment variables.");
   }
   return key;
 }
@@ -68,7 +52,5 @@ export function getTwelveDataApiKey(): string {
   return process.env.TWELVE_DATA_API_KEY || "";
 }
 
-export function getEodhdApiKey(): string {
-  return process.env.EODHD_API_KEY || "";
-}
+
 
