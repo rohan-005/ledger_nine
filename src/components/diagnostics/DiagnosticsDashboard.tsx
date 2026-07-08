@@ -295,12 +295,10 @@ export default function DiagnosticsDashboard() {
     switch (v) {
       case "INVEST":
         return "bg-emerald-600 text-white border-emerald-700 shadow-sm shadow-emerald-500/25";
-      case "WATCH":
-        return "bg-amber-500 text-white border-amber-600 shadow-sm shadow-amber-500/25";
       case "PASS":
-        return "bg-slate-600 text-white border-slate-700 shadow-sm shadow-slate-500/25";
+        return "bg-rose-600 text-white border-rose-700 shadow-sm shadow-rose-500/25";
       default:
-        return "bg-gray-600 text-white border-gray-700";
+        return "bg-rose-600 text-white border-rose-700";
     }
   };
 
@@ -308,10 +306,8 @@ export default function DiagnosticsDashboard() {
     switch (v) {
       case "INVEST":
         return "border-emerald-500/20 bg-emerald-50 text-emerald-700";
-      case "WATCH":
-        return "border-amber-500/20 bg-amber-50 text-amber-700";
       case "PASS":
-        return "border-slate-500/20 bg-slate-50 text-slate-700";
+        return "border-rose-500/20 bg-rose-50 text-rose-700";
       default:
         return "border-gray-500/20 bg-gray-50 text-gray-700";
     }
@@ -1060,9 +1056,8 @@ export default function DiagnosticsDashboard() {
                     <div className={`w-36 py-4 rounded-2xl text-center border font-black text-xl flex flex-col justify-center items-center gap-1 ${getVerdictStyle(pipelineResult.analysisRunResult.analysis.verdict)}`}>
                       <span className="tracking-wider">{pipelineResult.analysisRunResult.analysis.verdict}</span>
                       <span className="text-5xs opacity-85 font-normal tracking-normal font-sans">
-                        {pipelineResult.analysisRunResult.analysis.verdict === "INVEST" && "Attractive Setup"}
-                        {pipelineResult.analysisRunResult.analysis.verdict === "WATCH" && "Monitor Setup"}
-                        {pipelineResult.analysisRunResult.analysis.verdict === "PASS" && "Avoid Setup"}
+                        {pipelineResult.analysisRunResult.analysis.verdict === "INVEST" && "Supported Evidence"}
+                        {pipelineResult.analysisRunResult.analysis.verdict === "PASS" && "Insufficient / Risk"}
                       </span>
                     </div>
                     <span className="text-5xs font-bold text-foreground-muted uppercase tracking-wider block">Model Synthesis Verdict</span>

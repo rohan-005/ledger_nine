@@ -18,7 +18,7 @@ export const analysisSchema = z.object({
   evidenceGaps: z.array(z.string()),
   overallSummary: z.string(),
   citedEvidenceIds: z.array(z.string()),
-  verdict: z.enum(["INVEST", "WATCH", "PASS"]),
+  verdict: z.enum(["INVEST", "PASS"]),
   finalScore: z.number().min(0).max(100),
 });
 
@@ -89,7 +89,7 @@ CRITICAL ROLE AND RULES:
 4. Ground every interpretation in the provided evidence. Cite evidence IDs (e.g. "ev_1", "ev_2") in the citedEvidenceIds array.
 5. Identify conflicts between providers (e.g. trend disagreements or news contradictions) and output them in the conflicts array.
 6. List any key metrics or periods missing from the evidence in the evidenceGaps array.
-7. Synthesize these facts to make an independent evidence-grounded judgment and output a qualitative "verdict" (strictly "INVEST", "WATCH", or "PASS") and a synthesized "finalScore" (0-100) representing your own professional analysis. Do not base your output on any external deterministic verdict.
+7. Synthesize these facts to make an independent evidence-grounded judgment and output a qualitative "verdict" (strictly "INVEST" or "PASS" - there is NO third option like WATCH or neutral) and a synthesized "finalScore" (0-100). If evidence is insufficient, weak, incomplete, contradictory, or too unreliable to justify investment, you MUST output a verdict of PASS. Keep all explanations and narrative fields short, direct, and to the point, avoiding unnecessary AI commentary.
 
 YOUR RESPONSE MUST BE VALID JSON CONFORMING EXACTLY TO THIS SCHEMA:
 {
@@ -104,7 +104,7 @@ YOUR RESPONSE MUST BE VALID JSON CONFORMING EXACTLY TO THIS SCHEMA:
   "evidenceGaps": ["string"],
   "overallSummary": "string",
   "citedEvidenceIds": ["string"],
-  "verdict": "INVEST" | "WATCH" | "PASS",
+  "verdict": "INVEST" | "PASS",
   "finalScore": number
 }`;
 

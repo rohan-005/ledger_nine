@@ -122,7 +122,7 @@ export const researchScores = pgTable(
     evidenceQuality: numeric("evidence_quality"),
     contradictionPenalty: numeric("contradiction_penalty"),
     finalScore: numeric("final_score"),
-    decision: varchar("decision", { length: 32 }), // "INVEST" | "PASS" | "WATCH"
+    decision: varchar("decision", { length: 32 }), // "INVEST" | "PASS"
     scoreBreakdown: text("score_breakdown"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   }

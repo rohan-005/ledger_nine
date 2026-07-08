@@ -176,12 +176,10 @@ export default function ResearchPage(props: PageProps) {
     switch (v) {
       case "INVEST":
         return "bg-emerald-600 text-white border-emerald-700 shadow-sm shadow-emerald-500/25";
-      case "WATCH":
-        return "bg-amber-500 text-white border-amber-600 shadow-sm shadow-amber-500/25";
       case "PASS":
-        return "bg-slate-600 text-white border-slate-700 shadow-sm shadow-slate-500/25";
+        return "bg-rose-600 text-white border-rose-700 shadow-sm shadow-rose-500/25";
       default:
-        return "bg-slate-600 text-white border-slate-700";
+        return "bg-rose-600 text-white border-rose-700";
     }
   };
 
@@ -819,9 +817,8 @@ export default function ResearchPage(props: PageProps) {
                     <div className={`w-36 py-4 rounded-2xl text-center border font-black text-xl flex flex-col justify-center items-center gap-1 ${getVerdictStyle(analysisRunResult.analysis.verdict)}`}>
                       <span className="tracking-wider">{analysisRunResult.analysis.verdict}</span>
                       <span className="text-8xs opacity-85 font-normal tracking-normal font-sans">
-                        {analysisRunResult.analysis.verdict === "INVEST" && "Attractive Setup"}
-                        {analysisRunResult.analysis.verdict === "WATCH" && "Monitor Setup"}
-                        {analysisRunResult.analysis.verdict === "PASS" && "Avoid Setup"}
+                        {analysisRunResult.analysis.verdict === "INVEST" && "Supported Evidence"}
+                        {analysisRunResult.analysis.verdict === "PASS" && "Insufficient / Risk"}
                       </span>
                     </div>
                     <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">Model Synthesis Verdict</span>

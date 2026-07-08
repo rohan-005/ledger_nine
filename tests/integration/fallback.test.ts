@@ -96,7 +96,7 @@ describe("Strict Groq Analysis Integration Tests", () => {
         evidenceGaps: [],
         overallSummary: "Groq Overall Summary",
         citedEvidenceIds: [],
-        verdict: "WATCH",
+        verdict: "PASS",
         finalScore: 65,
       },
     });
@@ -105,7 +105,7 @@ describe("Strict Groq Analysis Integration Tests", () => {
 
     expect(res.status).toBe("success");
     expect(res.selectedProvider).toBe("groq");
-    expect(res.data?.verdict).toBe("WATCH");
+    expect(res.data?.verdict).toBe("PASS");
     expect(res.data?.finalScore).toBe(65);
     expect(runGroqAnalysis).toHaveBeenCalledOnce();
   });
