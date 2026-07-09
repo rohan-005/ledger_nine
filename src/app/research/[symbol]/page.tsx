@@ -291,7 +291,7 @@ export default function ResearchPage(props: PageProps) {
     <div className="w-full flex-1 bg-background flex flex-col animate-fadeIn">
       {/* Top Overview & Final Verdict Section (First Viewport) */}
       <div className="border-b border-border bg-slate-50/50 py-8">
-        <div className="max-w-6xl w-full mx-auto px-6">
+        <div className="max-w-7xl w-full mx-auto px-6">
           <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-6">
             
             {/* Desktop Layout (Two Column) */}
@@ -476,7 +476,7 @@ export default function ResearchPage(props: PageProps) {
 
       {/* Sticky Tab Navigation Header */}
       <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-border z-40 shadow-xs">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="font-extrabold text-foreground text-sm uppercase tracking-tight bg-slate-100 border border-border px-2.5 py-1 rounded-lg font-mono">
               {snapshot.company.ticker}
@@ -509,7 +509,7 @@ export default function ResearchPage(props: PageProps) {
         </div>
       </div>
 
-      <div className="max-w-6xl w-full mx-auto px-6 py-8 space-y-8 flex-1">
+      <div className="max-w-7xl w-full mx-auto px-6 py-8 space-y-8 flex-1">
         
         {/* Tab content area */}
         {activeTab === "overview" && (
