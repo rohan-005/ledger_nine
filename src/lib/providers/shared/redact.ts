@@ -3,6 +3,7 @@ import "server-only";
 const SECRET_ENV_VARS = [
   "GEMINI_API_KEY",
   "GROQ_API_KEY",
+  "OPENROUTER_API_KEY",
   "TAVILY_API_KEY",
   "FMP_API_KEY",
   "ALPHA_VANTAGE_API_KEY",

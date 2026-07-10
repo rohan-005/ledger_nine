@@ -6,6 +6,8 @@ import { runAllProviderHealthChecks } from "@/src/lib/providers/healthCheck";
 // Mock env module first
 vi.mock("@/src/lib/env", () => ({
   getGroqApiKey: () => "fake_groq_api_key",
+  getOpenRouterApiKey: () => "fake_openrouter_api_key",
+  getOpenRouterModel: () => "fake_model",
 }));
 
 // Mock fetchAllProviders
@@ -19,13 +21,27 @@ vi.mock("@/src/lib/providers/healthCheck", () => ({
 }));
 
 // Mock ChatGroq from @langchain/groq
-const mockInvoke = vi.fn();
+const mockGroqInvoke = vi.fn();
 vi.mock("@langchain/groq", () => {
   return {
     ChatGroq: class {
       withStructuredOutput = () => {
         return {
-          invoke: mockInvoke,
+          invoke: mockGroqInvoke,
+        };
+      };
+    },
+  };
+});
+
+// Mock ChatOpenAI from @langchain/openai
+const mockOpenRouterInvoke = vi.fn();
+vi.mock("@langchain/openai", () => {
+  return {
+    ChatOpenAI: class {
+      withStructuredOutput = () => {
+        return {
+          invoke: mockOpenRouterInvoke,
         };
       };
     },
@@ -56,21 +72,26 @@ describe("LangGraph Research Graph Integration Tests", () => {
       rawHealthResults: [],
     });
 
-    // 3. Mock ChatGroq invoke response
-    mockInvoke.mockResolvedValue({
-      companySummary: "Groq Summary",
-      financialInterpretation: "Financial Details",
-      marketInterpretation: "Market Details",
-      newsInterpretation: "News Details",
-      webResearchInterpretation: "Web Details",
-      strengths: ["Strong cash flow"],
-      concerns: ["Valuation"],
-      conflicts: [],
-      evidenceGaps: [],
-      overallSummary: "Groq Overall Summary",
-      citedEvidenceIds: [],
+    // 3. Mock OpenRouter response
+    mockOpenRouterInvoke.mockResolvedValue({
+      investmentScore: 90,
       verdict: "INVEST",
-      finalScore: 85,
+      confidence: 95,
+      pros: ["Strong cash flow"],
+      cons: ["High valuation"],
+      riskFactors: ["Market competition"],
+      summary: "OpenRouter Overall Summary",
+    });
+
+    // 4. Mock Groq response
+    mockGroqInvoke.mockResolvedValue({
+      investmentScore: 80,
+      verdict: "INVEST",
+      confidence: 85,
+      pros: ["Strong cash flow"],
+      cons: ["High valuation"],
+      riskFactors: ["Market competition"],
+      summary: "Groq Overall Summary",
     });
 
     const result = await researchGraph.invoke({
@@ -86,10 +107,10 @@ describe("LangGraph Research Graph Integration Tests", () => {
     expect(result.analysisRunResult).toBeDefined();
     expect(result.analysisRunResult?.status).toBe("success");
     expect(result.analysisRunResult?.data?.verdict).toBe("INVEST");
-    expect(result.analysisRunResult?.data?.finalScore).toBe(85);
+    expect(result.analysisRunResult?.data?.finalScore).toBe(72); // average of 90 (OpenRouter), 80 (Groq), and 45 (mock Gemini) is 72
   });
 
-  it("should route to finalizeReport and force PASS verdict when Groq fails", async () => {
+  it("should fallback to Groq when OpenRouter fails", async () => {
     vi.mocked(runDiagnosticsPipeline).mockResolvedValue({
       company: { name: "Apple Inc", displayTicker: "AAPL", canonicalTicker: "AAPL" } as any,
       overallStatus: "success",
@@ -106,22 +127,30 @@ describe("LangGraph Research Graph Integration Tests", () => {
       rawHealthResults: [],
     });
 
-    // Groq throws an error
-    mockInvoke.mockRejectedValue(new Error("Groq API Timeout"));
+    // OpenRouter fails
+    mockOpenRouterInvoke.mockRejectedValue(new Error("OpenRouter timeout"));
+
+    // Groq succeeds
+    mockGroqInvoke.mockResolvedValue({
+      investmentScore: 70,
+      verdict: "PASS",
+      confidence: 75,
+      pros: ["Good assets"],
+      cons: ["Valuation pressure"],
+      riskFactors: ["Macro risks"],
+      summary: "Groq Fallback Summary",
+    });
 
     const result = await researchGraph.invoke({
       ticker: "AAPL",
     });
 
-    // Graph sets status = "unavailable"
-    expect(result.status).toBe("unavailable");
-    // Graph falls back to PASS verdict
+    // Overall verdict from Groq (PASS) + Gemini (PASS) consensus is PASS
+    expect(result.status).toBe("success"); // consensus was reached with fallbacks
     expect(result.verdict).toBe("PASS");
-    expect(result.analysisRunResult).toBeDefined();
-    expect(result.analysisRunResult?.status).toBe("unavailable");
-    expect(result.analysisRunResult?.data).toBeNull();
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain("LangChain + ChatGroq execution failed");
+    expect(result.analysisRunResult?.status).toBe("success");
+    expect(result.analysisRunResult?.selectedProvider).toBe("groq");
+    expect(result.analysisRunResult?.data?.verdict).toBe("PASS");
   });
 
   it("should route to finalizeReport immediately if company cannot be resolved", async () => {

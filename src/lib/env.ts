@@ -52,5 +52,14 @@ export function getTwelveDataApiKey(): string {
   return process.env.TWELVE_DATA_API_KEY || "";
 }
 
+export function getOpenRouterApiKey(): string {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) {
+    throw new ConfigurationError("OPENROUTER_API_KEY is not configured in environment variables.");
+  }
+  return key;
+}
 
-
+export function getOpenRouterModel(): string {
+  return process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat:free";
+}

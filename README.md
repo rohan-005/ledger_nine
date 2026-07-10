@@ -1,6 +1,6 @@
 # Ledger Nine
 
-An evidence-first company research platform that collects available market and financial data, normalizes it, evaluates transparent evidence categories, and produces a binary INVEST or PASS verdict using only the collected evidence.
+An evidence-first company research platform that collects available market and financial data, normalizes it, evaluates transparent evidence categories, and produces a consensus binary INVEST or PASS verdict using a three-model consensus engine orchestrated by **LangGraph.js** and **LangChain.js**.
 
 > **Disclaimer:** For research and educational purposes only. Not personalized financial advice.
 
@@ -8,18 +8,21 @@ An evidence-first company research platform that collects available market and f
 
 ### Overview
 
-Ledger Nine is a developer-friendly investment research system that replaces open-ended or hallucination-prone AI pipelines with a strict, evidence-only evaluation system orchestrated by **LangGraph.js** and **LangChain.js**.
+Ledger Nine is a developer-friendly investment research system that replaces open-ended or hallucination-prone AI pipelines with a strict, evidence-only evaluation system orchestrated by **LangGraph.js** and **LangChain.js**. It features a primary **OpenRouter** model, a **Groq** fallback, and a deterministic local **Gemini mock** provider forming a three-way consensus node to evaluate investment viability.
 
 ### Core Workflow (LangGraph Orchestration)
-The entire research lifecycle is executed as a deterministic directed acyclic graph (DAG) using LangGraph:
+The entire research lifecycle is executed as a deterministic state machine using LangGraph:
 1. **resolveCompany**: Resolves the input query/ticker to a `CompanyIdentity` matching our curated catalog or default configuration.
 2. **collectEvidence**: Queries all active data providers (Finnhub, Twelve Data, SEC EDGAR, FMP, Alpha Vantage, NewsAPI, Yahoo Finance) in parallel to retrieve real-time market data, statements, and news.
 3. **normalizeEvidence**: Reconciles raw results into a unified, provider-agnostic `EvidenceBundle`.
 4. **assessCategories**: Compiles a normalized `CompanyMarketSnapshot` and pre-evaluates key category metrics (price history, financial capacity, cash flow, news sentiment, market value).
 5. **checkCompleteness**: Deterministically calculates a data completeness score (0-100) across required categories.
-6. **interpretEvidence**: Invokes **LangChain.js** with **ChatGroq** (using Llama-3.3-70b-versatile) to qualitatively analyze the normalized evidence bundle under strict constraints.
-7. **validateVerdict**: Ensures the LLM-derived verdict strictly adheres to the binary **INVEST** or **PASS** verdict schema.
-8. **finalizeReport**: Generates the final unified response contract for frontend consumption.
+6. **openRouterNode**: Invokes **LangChain.js** with **ChatOpenAI** mapped to the OpenRouter endpoint (default: `deepseek/deepseek-chat:free`) to analyze evidence under strict constraints.
+7. **groqNode**: Invokes **ChatGroq** (using `llama-3.3-70b-versatile`) as the fallback provider.
+8. **geminiNode**: Runs a deterministic local mock analyzing category metrics without external API keys.
+9. **consensusNode**: Evaluates outputs from OpenRouter, Groq, and Gemini, applying majority-vote logic for the final binary `INVEST`/`PASS` verdict, averaging scores, and aggregating qualitative evidence.
+10. **validateVerdict**: Ensures the verdict strictly adheres to the binary **INVEST** or **PASS** verdict schema.
+11. **finalizeReport**: Generates the final unified response contract for frontend consumption.
 
 ### User Experience
 * **Home Page**: Features a debounced dynamic company search resolving US and Indian equities, visual provider health-check statuses, and educational cards detailing the evidence-only framework.
@@ -52,7 +55,9 @@ Create a `.env.local` file in the root directory and configure the following var
 
 | Variable | Required | Purpose |
 | :--- | :--- | :--- |
-| `GROQ_API_KEY` | **Yes** | API key to perform qualitative interpretation via Groq's Llama models. |
+| `OPENROUTER_API_KEY` | **Yes** | API key to perform reasoning via OpenRouter. |
+| `OPENROUTER_MODEL` | No | Default: `deepseek/deepseek-chat:free`. Switching model switches reasoning engines. |
+| `GROQ_API_KEY` | **Yes** | API key to perform qualitative interpretation fallback via Groq's Llama models. |
 | `FMP_API_KEY` | **Yes** | API key for Financial Modeling Prep (profile, key metrics, income statement). |
 | `ALPHA_VANTAGE_API_KEY` | **Yes** | API key for Alpha Vantage (provides daily price time-series fallbacks). |
 | `SEC_EDGAR_USER_AGENT` | **Yes** | User-Agent identifier (e.g., `PlatformName contact@email.com`) required by the SEC. |
@@ -61,7 +66,7 @@ Create a `.env.local` file in the root directory and configure the following var
 | `NEWS_API_KEY` | No | API key for NewsAPI (provides company news article lookup). |
 | `TWELVE_DATA_API_KEY` | No | API key for Twelve Data (provides quote and time-series endpoints). |
 
-*Note: Yahoo Finance integration does **not** require an API key.*
+*Note: Yahoo Finance and the Gemini Mock integration do **not** require API keys.*
 
 ### 4. Start Development Server
 ```bash
@@ -112,10 +117,13 @@ flowchart TD
     Assess -->|Unavailable| Finalize
     Assess -->|Success| Completeness[checkCompleteness]
     
-    Completeness --> Interpret[interpretEvidence]
+    Completeness --> OpenRouter[openRouterNode]
+    OpenRouter --> Groq[groqNode]
+    Groq --> Gemini[geminiNode]
+    Gemini --> Consensus[consensusNode]
     
-    Interpret -->|Unavailable| Finalize
-    Interpret -->|Success| Validate[validateVerdict]
+    Consensus -->|Unavailable| Finalize
+    Consensus -->|Success| Validate[validateVerdict]
     
     Validate --> Finalize
     
@@ -124,11 +132,14 @@ flowchart TD
 
 ### LangGraph Nodes
 * **resolveCompany**: Matches symbol query against the database of curated companies and validates structure.
-* **collectEvidence**: Queries active providers in parallel (Finnhub, Twelve Data, SEC EDGAR, FMP, Alpha Vantage, NewsAPI, Yahoo Finance) to gather financial and price records. Bypasses optional errors gracefully.
+* **collectEvidence**: Queries active providers in parallel to gather financial and price records. Bypasses optional errors gracefully.
 * **normalizeEvidence**: Processes raw endpoint data into a standard `EvidenceBundle` containing nested values and provenance logs.
 * **assessCategories**: Evaluates technical and fundamental conditions (e.g. low-debt checks, cash flow coverage, price history length).
 * **checkCompleteness**: Calculates a transparent completeness percentage.
-* **interpretEvidence**: Feeds the normalized payload to **LangChain.js** via the **ChatGroq** integration. ChatGroq invokes `llama-3.3-70b-versatile` under a structured Zod schema constraint.
+* **openRouterNode**: Passes evidence to OpenRouter via LangChain using the configured model. Returns structured JSON.
+* **groqNode**: Standard fallback node invoked to provide Llama-3.3-70b structured responses.
+* **geminiNode**: Deterministic local mock simulating Gemini verdicts.
+* **consensusNode**: Combines model verdicts (majority wins; tie goes to PASS), averages scores, and aggregates evidence lists.
 * **validateVerdict**: Ensures verdict output is strictly binary: `INVEST` or `PASS`.
 * **finalizeReport**: Compiles results, errors, and diagnostics into a unified response model.
 
@@ -157,91 +168,9 @@ No external or speculative indicators (e.g. social media sentiment, analyst pred
 | **Alpha Vantage** | Search, Quote, Daily Time-Series Charts | Non-fatal; used as a tertiary chart fallback. |
 | **NewsAPI** | Company news articles lookup | Non-fatal; falls back to Finnhub news. |
 | **Yahoo Finance** | Optional symbol search, quote, chart fallback | Non-fatal; failure does not impact other providers. |
-| **Groq** | Qualitative interpretation of evidence | **Fatal**; if Groq fails or rate limits, research fails. |
-
-### Role of the LLM (Groq)
-* Groq is **not** used as a database or web crawler.
-* It receives a structured, pre-normalized, compacted payload containing only verified evidence.
-* The system prompt restricts the model to the provided boundaries: it is forbidden from extrapolating financial facts, guessing missing ratios, or asserting AI intuition.
-* If evidence is weak, contradictory, or incomplete, the prompt instructs the model to return a **PASS** verdict.
-
-### Yahoo Finance Enrichment
-Yahoo Finance acts as a non-fatal, cacheable enrichment provider using direct `yahoo-finance2` APIs.
-* **Functions**: Quote fetching (`yf.quote`), historical chart retrieval (`yf.chart`), and symbol search (`yf.search`).
-* **Resilience**: Bypassed automatically if Yahoo Finance blocks requests, preventing rate limits from failing the complete run.
-
-### Project Structure
-```text
-src/
-├── app/
-│   ├── api/
-│   │   ├── companies/search/route.ts
-│   │   ├── health/route.ts
-│   │   ├── providers/health/route.ts
-│   │   ├── research/fetch/route.ts
-│   │   └── search/route.ts
-│   ├── research/[symbol]/page.tsx
-│   ├── favicon.ico
-│   ├── globals.css
-│   ├── layout.tsx
-│   └── page.tsx
-├── components/
-│   └── research/
-│       └── ResearchLoadingExperience.tsx
-├── data/
-│   ├── curatedCompanies.ts
-│   └── indianCompanies.ts
-├── db/
-│   ├── schema/
-│   │   ├── index.ts
-│   │   └── tables.ts
-│   ├── repositories/
-│   │   ├── agent-run.repository.ts
-│   │   ├── cache.repository.ts
-│   │   ├── contradiction.repository.ts
-│   │   ├── evidence.repository.ts
-│   │   ├── report.repository.ts
-│   │   ├── research.repository.ts
-│   │   └── score.repository.ts
-│   └── index.ts
-├── lib/
-│   ├── company/
-│   │   └── symbolCandidates.ts
-│   ├── providers/
-│   │   ├── shared/
-│   │   │   ├── errors.ts
-│   │   │   ├── fetchJson.ts
-│   │   │   ├── redact.ts
-│   │   │   └── types.ts
-│   │   ├── alphavantage.ts
-│   │   ├── finnhub.ts
-│   │   ├── fmp.ts
-│   │   ├── groq.ts
-│   │   ├── healthCheck.ts
-│   │   ├── index.ts
-│   │   ├── newsapi.ts
-│   │   ├── sec.ts
-│   │   ├── twelveData.ts
-│   │   └── yahoo.ts
-│   ├── research/
-│   │   ├── asset-identity.ts
-│   │   ├── buildEvidenceBundle.ts
-│   │   ├── compactPayload.ts
-│   │   ├── fetchAllProviders.ts
-│   │   ├── llmAnalysis.ts
-│   │   ├── researchGraph.ts
-│   │   └── snapshotEngine.ts
-│   ├── errors-sanitizer.ts
-│   ├── errors.ts
-│   ├── env.ts
-│   ├── ids.ts
-│   ├── json.ts
-│   ├── logger.ts
-│   └── time.ts
-└── types/
-    ├── frontend.ts
-    └── snapshot.ts
-```
+| **OpenRouter** | Primary qualitative interpretation of evidence | Non-fatal; fails over to Groq and mock Gemini. |
+| **Groq** | Fallback qualitative interpretation of evidence | Non-fatal fallback layer. |
+| **Gemini (Mock)** | Mocked local deterministic verdict engine | Always succeeds locally. |
 
 ---
 
@@ -253,8 +182,10 @@ src/
 | **Binary Verdict** | Strict `INVEST` or `PASS`. | Eliminates ambiguous ratings like "Neutral" or "Hold". | Does not capture fine-grained portfolio statuses. |
 | **Multi-Provider** | Query FMP, Finnhub, Twelve Data, Yahoo. | Prevents rate limit failures; provides coverage across international exchanges. | Inconsistent data schemas must be reconciled. |
 | **Yahoo Non-Fatal** | Yahoo Finance as optional enrichment. | Protects runs from Yahoo Finance IP-level blocking. | Historical prices can be less detailed if Twelve Data also fails. |
-| **Constrained LLM** | Groq interprets only supplied evidence. | Prevents Groq from fabricating company details. | Strict formatting constraints can occasionally limit summary descriptions. |
+| **Constrained LLMs**| OpenRouter / Groq interpret only supplied evidence. | Prevents models from fabricating company details. | Strict formatting constraints can occasionally limit summary descriptions. |
 | **No-Fabrication** | Missing data is flagged as missing. | Protects audit integrity. | Poor provider coverage results in default PASS verdicts. |
+| **Consensus Node** | Majority verdict and average score. | Eliminates single-model biases and increases decision robustness. | Increases orchestration overhead. |
+| **Gemini Mock** | No external Google API dependency. | Follows absolute constraints on Gemini dependencies. | Evaluated via heuristic rules rather than dynamic generative reasoning. |
 | **2–3 Year Charts** | Focus on medium-term daily bars. | Balances trend detection with API response size limits. | Misses long-term macroeconomic cycles. |
 | **Atmospheric Loader**| Loading experience displaying active queries. | Improves user experience without inventing fake progress percentages. | Messages describe active endpoints but are not linked to exact percentages. |
 | **Two-Page UX** | Home Page + Research Result. | Simple user journey focusing on search-to-result path. | Lacks secondary analysis settings pages. |
@@ -272,15 +203,6 @@ src/
 4. Wait for the interactive loading animation to resolve.
 5. Review the resulting **INVEST** or **PASS** verdict and inspect the evidence breakdown.
 
-### Sample Companies Used for Walkthrough
-The reviewer walkthrough below was exercised against the following three companies to validate cross-market coverage (US large-cap tech, US semiconductor, and Indian retail/conglomerate exposure). As noted above, actual verdicts, prices, and evidence values are only produced by a live run against active provider keys and are intentionally **not** hard-coded here.
-
-* **Apple (AAPL)** — resolved via the curated US equities catalog; exercises the full FMP/SEC EDGAR/Finnhub statement path plus Twelve Data and Yahoo Finance chart fallbacks.
-* **Nvidia (NVDA)** — resolved via the curated US equities catalog; used to validate high-volatility 2–3 year price behavior handling and recent news sentiment ingestion.
-* **Reliance Digital** — resolved against the Indian equities catalog via its parent listing (Reliance Industries, NSE/BSE: RELIANCE), since Reliance Digital itself is a retail subsidiary and not a separately listed security; used to validate the non-US pathway where SEC EDGAR is bypassed gracefully and statement data instead comes from FMP/Finnhub/Twelve Data/Yahoo Finance.
-
-For each of the three, the reviewer follows the same steps: search, resolve, wait for the loading experience to complete, then inspect the top-of-viewport INVEST/PASS verdict alongside the price chart, balance sheet, cash flow, news, and full evidence audit tabs.
-
 ---
 
 ## What I Would Improve With More Time
@@ -297,7 +219,6 @@ This project was built with iterative AI assistance. Prompts and tools helped gu
 * Decommissioning of obsolete provider interfaces (Gemini, Tavily, EODHD).
 * Implementation of the strict binary verdict model (`INVEST`/`PASS`).
 * CSS refinement to comply with the warm-colored styling rule (no blue accents).
-
 
 ---
 

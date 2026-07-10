@@ -59,6 +59,8 @@ export function sanitizeErrorMessage(message: string | null | undefined): string
       providerName = "Gemini";
     } else if (originalLower.includes("groq")) {
       providerName = "Groq";
+    } else if (originalLower.includes("openrouter")) {
+      providerName = "OpenRouter";
     }
 
     if (providerName) {
