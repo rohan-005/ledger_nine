@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, use } from "react";
 import Link from "next/link";
 import ResearchLoadingExperience from "@/src/components/research/ResearchLoadingExperience";
+import { generateInvestmentReport } from "@/src/utils/pdfGenerator";
 
 interface PageProps {
   params: Promise<{ symbol: string }>;
@@ -30,8 +31,6 @@ export default function ResearchPage(props: PageProps) {
 
   // Audit Tab specific filters/views
   const [activeProviderFilter, setActiveProviderFilter] = useState<string | null>(null);
-  const [showFullJson, setShowFullJson] = useState(false);
-  const [showEvidenceBundleJson, setShowEvidenceBundleJson] = useState(false);
   const [expandedEndpoints, setExpandedEndpoints] = useState<Record<string, boolean>>({});
 
   // Reference for scrolling to specific evidence items
@@ -135,19 +134,19 @@ export default function ResearchPage(props: PageProps) {
       case "strong":
       case "positive":
       case "valued":
-        return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
+        return "bg-neutral-100 text-neutral-900 border-neutral-900";
       case "moderate":
       case "mixed":
-        return "bg-amber-500/10 text-amber-700 border-amber-500/20";
+        return "bg-neutral-50 text-neutral-700 border-neutral-400";
       case "neutral":
-        return "bg-slate-500/10 text-slate-700 border-slate-500/20";
+        return "bg-neutral-50 text-neutral-600 border-neutral-300";
       case "insufficient":
       case "weak":
       case "negative":
-        return "bg-rose-500/10 text-rose-700 border-rose-500/20";
+        return "bg-neutral-900 text-white border-neutral-950 font-bold";
       case "unavailable":
       default:
-        return "bg-slate-500/10 text-slate-700 border-slate-500/20";
+        return "bg-neutral-50 text-neutral-500 border-neutral-200";
     }
   };
 
@@ -155,31 +154,31 @@ export default function ResearchPage(props: PageProps) {
     switch (status) {
       case "working":
       case "success":
-        return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
+        return "bg-neutral-100 text-neutral-900 border-neutral-900";
       case "partial":
-        return "bg-amber-500/10 text-amber-600 border-amber-500/20";
+        return "bg-neutral-50 text-neutral-700 border-neutral-400";
       case "empty":
-        return "bg-slate-500/10 text-slate-500 border-slate-500/20";
+        return "bg-neutral-50 text-neutral-400 border-neutral-200";
       case "rate_limit":
-        return "bg-rose-500/10 text-rose-600 border-rose-500/20 animate-pulse";
+        return "bg-neutral-900 text-white border-neutral-950 font-bold animate-pulse";
       case "auth_error":
-        return "bg-red-500/10 text-red-600 border-red-500/20 font-bold";
+        return "bg-neutral-900 text-white border-neutral-950 font-black";
       case "plan_limited":
       case "plan_limit":
-        return "bg-purple-500/10 text-purple-600 border-purple-500/20 font-medium";
+        return "bg-neutral-100 text-neutral-800 border-neutral-400 font-medium";
       default:
-        return "bg-rose-500/10 text-rose-700 border-rose-500/20";
+        return "bg-neutral-50 text-neutral-600 border-neutral-300";
     }
   };
 
   const getVerdictStyle = (v: string) => {
     switch (v) {
       case "INVEST":
-        return "bg-emerald-600 text-white border-emerald-700 shadow-sm shadow-emerald-500/25";
+        return "bg-emerald-700 text-white border-emerald-900 shadow-[2px_2px_0px_0px_#111111]";
       case "PASS":
-        return "bg-rose-600 text-white border-rose-700 shadow-sm shadow-rose-500/25";
+        return "bg-rose-700 text-white border-rose-900 shadow-[2px_2px_0px_0px_#111111]";
       default:
-        return "bg-rose-600 text-white border-rose-700";
+        return "bg-neutral-800 text-white border-neutral-950";
     }
   };
 
@@ -204,16 +203,15 @@ export default function ResearchPage(props: PageProps) {
     return { ceo, founded };
   };
 
-  // Click citation to scroll and highlight the raw diagnostic evidence item
   const handleCitationClick = (id: string) => {
     setActiveTab("audit");
     setTimeout(() => {
       const target = evidenceRefs.current[id];
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "center" });
-        target.classList.add("ring-2", "ring-orange-500", "scale-101");
+        target.classList.add("ring-2", "ring-foreground", "scale-101");
         setTimeout(() => {
-          target.classList.remove("ring-2", "ring-orange-500", "scale-101");
+          target.classList.remove("ring-2", "ring-foreground", "scale-101");
         }, 3000);
       }
     }, 150);
@@ -226,7 +224,7 @@ export default function ResearchPage(props: PageProps) {
     }));
   };
 
-  // Loading indicator panel
+  // Loading state panel
   if (loading) {
     return (
       <div className="flex-1 bg-background flex flex-col justify-center items-center px-4 py-20 w-full">
@@ -242,20 +240,20 @@ export default function ResearchPage(props: PageProps) {
   if (!pipelineResult) {
     return (
       <div className="flex-1 bg-background flex flex-col justify-center items-center px-4 py-20">
-        <div className="w-full max-w-md bg-white border border-border rounded-2xl shadow-md p-6 text-center space-y-4">
-          <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center text-rose-600 mx-auto">
+        <div className="w-full max-w-md bg-white border-2 border-foreground shadow-[4px_4px_0px_0px_#111111] p-6 text-center space-y-4">
+          <div className="w-12 h-12 border border-foreground flex items-center justify-center text-foreground mx-auto">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h2 className="text-base font-bold text-foreground">Pipeline Fetch Failed</h2>
-          <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-tight">Pipeline Fetch Failed</h2>
+          <p className="text-2xs text-foreground-secondary leading-relaxed font-medium">
             Could not retrieve data points or complete analysis runs for symbol. Ensure provider connections are active.
           </p>
           <div className="pt-2">
             <button
               onClick={runResearch}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 border border-foreground bg-foreground text-white hover:bg-neutral-800 text-xs font-bold shadow-[2px_2px_0px_0px_#737373] transition-colors cursor-pointer"
             >
               Retry Pipeline Audit
             </button>
@@ -269,14 +267,13 @@ export default function ResearchPage(props: PageProps) {
   const currency = snapshot.company.currency || "USD";
   const points = getHistoricalPrices();
 
-  // Scroll target shortcuts
   const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "price-trend", label: "Price Trend" },
-    { id: "financials", label: "Balance & Cash" },
-    { id: "news", label: "News Sentiment" },
-    { id: "evidence", label: "Evidence Balance" },
-    { id: "audit", label: "Provider Audit" }
+    { id: "overview", label: "OVERVIEW" },
+    { id: "price-trend", label: "PRICE TREND" },
+    { id: "financials", label: "BALANCE & CASH" },
+    { id: "news", label: "NEWS SENTIMENT" },
+    { id: "evidence", label: "EVIDENCE BALANCE" },
+    { id: "audit", label: "PROVIDER AUDIT" }
   ];
 
   const hasAnalysis = analysisRunResult && analysisRunResult.status !== "unavailable" && analysisRunResult.analysis;
@@ -288,46 +285,46 @@ export default function ResearchPage(props: PageProps) {
   const marketCapFormatted = formatLargeNumber(snapshot.market.marketCap, true, currency);
 
   return (
-    <div className="w-full flex-1 bg-background flex flex-col animate-fadeIn">
+    <div className="w-full flex-1 bg-background flex flex-col font-sans">
       {/* Top Overview & Final Verdict Section (First Viewport) */}
-      <div className="border-b border-border bg-slate-50/50 py-8">
+      <div className="border-b-2 border-foreground bg-neutral-50 py-8">
         <div className="max-w-7xl w-full mx-auto px-6">
-          <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-6">
+          <div className="bg-white border-2 border-foreground p-6 shadow-[4px_4px_0px_0px_#111111] space-y-6">
             
             {/* Desktop Layout (Two Column) */}
             <div className="hidden md:grid grid-cols-12 gap-8 items-stretch">
               {/* Left Column: Company Overview */}
-              <div className="col-span-7 flex flex-col justify-between space-y-4 border-r border-slate-100 pr-8">
+              <div className="col-span-7 flex flex-col justify-between space-y-4 border-r border-neutral-200 pr-8">
                 <div>
                   <div className="flex items-center gap-3">
-                    <span className="font-extrabold text-foreground text-xs uppercase tracking-tight bg-slate-100 border border-border px-2.5 py-0.5 rounded-lg font-mono">
+                    <span className="font-mono font-black text-xs uppercase tracking-tight bg-neutral-100 border border-foreground px-2 py-0.5">
                       {snapshot.company.ticker}
                     </span>
                     <span className="text-2xs text-foreground-secondary font-mono">
                       {snapshot.company.exchange || "US Exchange"}
                     </span>
                   </div>
-                  <h2 className="text-2xl font-black text-foreground mt-1.5 leading-tight">
+                  <h2 className="text-2xl font-black text-foreground mt-1.5 leading-tight uppercase font-sans">
                     {snapshot.company.name}
                   </h2>
                   
                   {/* Sector, CEO, Founded */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-foreground-secondary font-medium mt-2">
-                    <span>{snapshot.company.sector || "N/A"} / {snapshot.company.industry || "N/A"}</span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-foreground-secondary font-bold font-mono mt-2">
+                    <span className="uppercase">{snapshot.company.sector || "N/A"} / {snapshot.company.industry || "N/A"}</span>
                     {(() => {
                       const { ceo, founded } = extractMetadata(snapshot.company.description);
                       return (
                         <>
                           {ceo && (
                             <>
-                              <span className="text-slate-300">•</span>
+                              <span className="text-neutral-300">•</span>
                               <span>CEO: {ceo}</span>
                             </>
                           )}
                           {founded && (
                             <>
-                              <span className="text-slate-300">•</span>
-                              <span>Founded: {founded}</span>
+                              <span className="text-neutral-300">•</span>
+                              <span>FOUNDED: {founded}</span>
                             </>
                           )}
                         </>
@@ -337,18 +334,18 @@ export default function ResearchPage(props: PageProps) {
                 </div>
 
                 {/* Price & Market Cap Row */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100/80">
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200">
                   <div>
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Latest Stock Price</span>
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Latest Stock Price</span>
                     <div className="flex items-baseline gap-2 mt-1">
                       <span className="text-2xl font-black text-foreground font-mono">
                         {formatCurrency(snapshot.market.price, currency)}
                       </span>
                       {snapshot.market.changePercent !== null && (
-                        <span className={`text-8xs font-black font-mono px-1.5 py-0.5 rounded border ${
+                        <span className={`text-8xs font-black font-mono px-1.5 py-0.5 border ${
                           snapshot.market.changePercent >= 0 
-                            ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" 
-                            : "bg-rose-500/10 text-rose-700 border-rose-500/20"
+                            ? "bg-neutral-100 text-neutral-900 border-neutral-900" 
+                            : "bg-neutral-900 text-white border-neutral-950"
                         }`}>
                           {snapshot.market.changePercent >= 0 ? "+" : ""}
                           {snapshot.market.changePercent.toFixed(2)}%
@@ -357,7 +354,7 @@ export default function ResearchPage(props: PageProps) {
                     </div>
                   </div>
                   <div>
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Market Cap</span>
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Market Cap</span>
                     <span className="text-xl font-black text-foreground font-mono block mt-1">
                       {marketCapFormatted}
                     </span>
@@ -369,25 +366,25 @@ export default function ResearchPage(props: PageProps) {
               <div className="col-span-5 flex flex-col justify-between space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">Investment Verdict</span>
-                    <div className={`px-5 py-2.5 rounded-xl border text-center font-black text-2xl tracking-widest ${getVerdictStyle(verdictStr)}`}>
+                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-widest block font-mono">Investment Verdict</span>
+                    <div className={`px-5 py-2 border text-center font-black text-2xl tracking-widest ${getVerdictStyle(verdictStr)}`}>
                       {verdictStr}
                     </div>
                   </div>
 
                   <div className="text-right space-y-1">
-                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">Confidence Score</span>
-                    <div className="bg-slate-50 border border-border rounded-xl px-4 py-2 flex flex-col items-center justify-center shadow-inner">
+                    <span className="text-8xs font-bold text-foreground-muted uppercase tracking-widest block font-mono">Confidence Score</span>
+                    <div className="bg-white border border-foreground px-4 py-2 flex flex-col items-center justify-center shadow-[2px_2px_0px_0px_#111111]">
                       <span className="text-lg font-black text-foreground font-mono">
                         {finalScore !== null ? finalScore : "N/A"}
                       </span>
-                      <span className="text-8xs text-foreground-muted uppercase tracking-wider font-bold">out of 100</span>
+                      <span className="text-8xs text-foreground-muted uppercase tracking-wider font-bold font-mono">out of 100</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5 flex-1 flex flex-col justify-center">
-                  <span className="text-8xs font-black text-foreground-muted uppercase tracking-wider block">Thesis Summary:</span>
+                <div className="bg-neutral-50 p-4 border border-neutral-200 space-y-1.5 flex-1 flex flex-col justify-center">
+                  <span className="text-8xs font-black text-foreground-muted uppercase tracking-widest block font-mono">Thesis Summary:</span>
                   <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
                     {overallSummary}
                   </p>
@@ -397,37 +394,35 @@ export default function ResearchPage(props: PageProps) {
 
             {/* Mobile Layout (Stacked) */}
             <div className="block md:hidden space-y-4">
-              {/* 1. Company Identity */}
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-foreground text-9xs uppercase bg-slate-100 border border-border px-2 py-0.5 rounded font-mono">
+                  <span className="font-mono font-black text-9xs uppercase bg-neutral-100 border border-foreground px-2 py-0.5">
                     {snapshot.company.ticker}
                   </span>
                   <span className="text-9xs text-foreground-secondary font-mono">
                     {snapshot.company.exchange || "US Exchange"}
                   </span>
                 </div>
-                <h2 className="text-lg font-black text-foreground mt-1">
+                <h2 className="text-base font-black text-foreground mt-1 uppercase">
                   {snapshot.company.name}
                 </h2>
-                <p className="text-9xs text-foreground-secondary font-medium mt-0.5">
+                <p className="text-9xs text-foreground-secondary font-bold font-mono uppercase mt-0.5">
                   {snapshot.company.sector || "N/A"} · {snapshot.company.industry || "N/A"}
                 </p>
               </div>
 
-              {/* 2. Key Metrics */}
-              <div className="grid grid-cols-2 gap-3 py-2 border-y border-slate-100">
+              <div className="grid grid-cols-2 gap-3 py-2 border-y border-neutral-200">
                 <div>
-                  <span className="text-9xs text-foreground-muted uppercase tracking-wider block font-bold">Price</span>
+                  <span className="text-9xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Price</span>
                   <div className="flex items-baseline gap-1.5 mt-0.5">
                     <span className="text-base font-black text-foreground font-mono">
                       {formatCurrency(snapshot.market.price, currency)}
                     </span>
                     {snapshot.market.changePercent !== null && (
-                      <span className={`text-9xs font-bold font-mono px-1 rounded ${
+                      <span className={`text-9xs font-bold font-mono px-1 border ${
                         snapshot.market.changePercent >= 0 
-                          ? "bg-emerald-500/10 text-emerald-700" 
-                          : "bg-rose-500/10 text-rose-700"
+                          ? "bg-neutral-100 text-neutral-900 border-neutral-900" 
+                          : "bg-neutral-900 text-white border-neutral-950"
                       }`}>
                         {snapshot.market.changePercent >= 0 ? "+" : ""}{snapshot.market.changePercent.toFixed(1)}%
                       </span>
@@ -435,35 +430,33 @@ export default function ResearchPage(props: PageProps) {
                   </div>
                 </div>
                 <div>
-                  <span className="text-9xs text-foreground-muted uppercase tracking-wider block font-bold">Market Cap</span>
+                  <span className="text-9xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Market Cap</span>
                   <span className="text-base font-black text-foreground font-mono block mt-0.5">
                     {marketCapFormatted}
                   </span>
                 </div>
               </div>
 
-              {/* 3. Final Verdict */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1">
-                  <span className="text-9xs font-bold text-foreground-muted uppercase tracking-wider block mb-1">Verdict</span>
-                  <div className={`py-2 rounded-xl border text-center font-black text-lg tracking-widest ${getVerdictStyle(verdictStr)}`}>
+                  <span className="text-9xs font-bold text-foreground-muted uppercase tracking-widest block mb-1 font-mono">Verdict</span>
+                  <div className={`py-1.5 border text-center font-black text-lg tracking-widest ${getVerdictStyle(verdictStr)}`}>
                     {verdictStr}
                   </div>
                 </div>
                 <div>
-                  <span className="text-9xs font-bold text-foreground-muted uppercase tracking-wider block mb-1">Score</span>
-                  <div className="bg-slate-50 border border-border rounded-xl px-3 py-1 text-center font-mono">
-                    <span className="text-base font-black text-foreground">
+                  <span className="text-9xs font-bold text-foreground-muted uppercase tracking-widest block mb-1 font-mono">Score</span>
+                  <div className="bg-white border border-foreground px-3 py-1 text-center shadow-[2px_2px_0px_0px_#111111]">
+                    <span className="text-base font-black text-foreground font-mono">
                       {finalScore !== null ? finalScore : "N/A"}
                     </span>
-                    <span className="text-9xs text-foreground-muted block font-sans font-bold uppercase">/ 100</span>
+                    <span className="text-9xs text-foreground-muted block font-mono font-bold uppercase">/ 100</span>
                   </div>
                 </div>
               </div>
 
-              {/* 4. Short Overview */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-1">
-                <span className="text-9xs font-black text-foreground-muted uppercase tracking-wider block">Thesis Summary:</span>
+              <div className="bg-neutral-50 p-3.5 border border-neutral-200 space-y-1">
+                <span className="text-9xs font-black text-foreground-muted uppercase tracking-widest block font-mono">Thesis Summary:</span>
                 <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
                   {overallSummary}
                 </p>
@@ -475,13 +468,13 @@ export default function ResearchPage(props: PageProps) {
       </div>
 
       {/* Sticky Tab Navigation Header */}
-      <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-border z-40 shadow-xs">
+      <div className="sticky top-0 bg-white border-b-2 border-foreground z-40 no-print">
         <div className="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="font-extrabold text-foreground text-sm uppercase tracking-tight bg-slate-100 border border-border px-2.5 py-1 rounded-lg font-mono">
+            <span className="font-mono font-black text-sm uppercase tracking-tight bg-neutral-100 border border-foreground px-2 py-0.5">
               {snapshot.company.ticker}
             </span>
-            <h1 className="text-sm font-bold text-foreground hidden sm:block">{snapshot.company.name}</h1>
+            <h1 className="text-xs font-bold text-foreground uppercase tracking-tight hidden sm:block">{snapshot.company.name}</h1>
           </div>
           
           <nav aria-label="Page section navigation" className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
@@ -489,10 +482,10 @@ export default function ResearchPage(props: PageProps) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`text-2xs font-bold tracking-wider px-3 py-1.5 transition-all cursor-pointer ${
                   activeTab === tab.id
-                    ? "bg-slate-900 text-white"
-                    : "text-foreground-secondary hover:text-foreground hover:bg-slate-50"
+                    ? "bg-foreground text-white border border-foreground"
+                    : "text-foreground-secondary hover:text-foreground hover:bg-neutral-100 border border-transparent"
                 }`}
               >
                 {tab.label}
@@ -500,12 +493,20 @@ export default function ResearchPage(props: PageProps) {
             ))}
           </nav>
 
-          <button
-            onClick={runResearch}
-            className="px-3.5 py-1.5 border border-border bg-white text-xs font-semibold rounded-lg hover:bg-slate-50 transition-all shadow-2xs text-foreground cursor-pointer shrink-0"
-          >
-            Re-run Diagnostic
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => generateInvestmentReport(pipelineResult)}
+              className="px-3 py-1.5 border border-foreground bg-white text-2xs font-bold text-foreground hover:bg-neutral-50 shadow-[2px_2px_0px_0px_#111111] transition-all cursor-pointer font-mono shrink-0"
+            >
+              DOWNLOAD PDF
+            </button>
+            <button
+              onClick={runResearch}
+              className="px-3 py-1.5 border border-foreground bg-white text-2xs font-bold text-foreground hover:bg-neutral-50 shadow-[2px_2px_0px_0px_#111111] transition-all cursor-pointer font-mono shrink-0"
+            >
+              RE-RUN DIAGNOSTIC
+            </button>
+          </div>
         </div>
       </div>
 
@@ -515,36 +516,36 @@ export default function ResearchPage(props: PageProps) {
         {activeTab === "overview" && (
           <div className="space-y-6 animate-fadeIn">
             {/* Core Ticker info */}
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-border pb-3">
+            <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-4">
+              <div className="flex justify-between items-center border-b border-foreground pb-3">
                 <div>
-                  <h3 className="text-base font-bold text-foreground">1. Company Details</h3>
-                  <p className="text-2xs text-foreground-secondary">Listing metadata and profile details extracted from registry providers</p>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">1. Company Details</h3>
+                  <p className="text-2xs text-foreground-secondary font-mono">Listing metadata and profile details extracted from registry providers</p>
                 </div>
-                <span className="text-2xs text-foreground-secondary font-mono bg-slate-50 px-2.5 py-0.5 rounded border border-border">
+                <span className="text-2xs text-foreground-secondary font-mono bg-neutral-100 px-2 py-0.5 border border-neutral-300">
                   Exchange: {snapshot.company.exchange || "US"}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                  <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Company Name</span>
+                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                  <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Company Name</span>
                   <span className="text-xs font-bold text-foreground block mt-1">{snapshot.company.name}</span>
                 </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                  <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Exchange / Country</span>
+                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                  <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Exchange / Country</span>
                   <span className="text-xs font-bold text-foreground block mt-1">
                     {snapshot.company.exchange || "N/A"} ({snapshot.company.country || "N/A"})
                   </span>
                 </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                  <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Sector / Industry</span>
+                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                  <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Sector / Industry</span>
                   <span className="text-xs font-bold text-foreground block mt-1 truncate">
                     {snapshot.company.sector || "N/A"} / {snapshot.company.industry || "N/A"}
                   </span>
                 </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                  <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Reporting Currency</span>
+                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                  <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Reporting Currency</span>
                   <span className="text-xs font-mono font-bold text-foreground block mt-1">
                     {snapshot.company.currency || "USD"}
                   </span>
@@ -552,8 +553,8 @@ export default function ResearchPage(props: PageProps) {
               </div>
 
               {snapshot.company.description && (
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
-                  <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold mb-1">Company Description</span>
+                <div className="bg-neutral-50 border border-neutral-200 p-4">
+                  <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono mb-1">Company Description</span>
                   <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
                     {snapshot.company.description}
                   </p>
@@ -562,13 +563,13 @@ export default function ResearchPage(props: PageProps) {
             </div>
 
             {/* Price Quote & Session Analytics */}
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-border pb-3">
+            <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-4">
+              <div className="flex justify-between items-center border-b border-foreground pb-3">
                 <div>
-                  <h3 className="text-base font-bold text-foreground">2. Current Stock Price</h3>
-                  <p className="text-2xs text-foreground-secondary">Live/latest market price quote and session analytics</p>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">2. Current Stock Price</h3>
+                  <p className="text-2xs text-foreground-secondary font-mono">Live/latest market price quote and session analytics</p>
                 </div>
-                <span className="text-2xs text-foreground-secondary font-mono bg-slate-50 px-2.5 py-0.5 rounded border border-border">
+                <span className="text-2xs text-foreground-secondary font-mono bg-neutral-100 px-2 py-0.5 border border-neutral-300">
                   Source: {snapshot.provenance?.market || "Provider Quotes"}
                 </span>
               </div>
@@ -579,10 +580,10 @@ export default function ResearchPage(props: PageProps) {
                     {formatCurrency(snapshot.market.price, currency)}
                   </span>
                   {snapshot.market.changePercent !== null && (
-                    <span className={`text-xs font-black font-mono px-2 py-0.5 rounded-lg border ${
+                    <span className={`text-2xs font-black font-mono px-2 py-0.5 border ${
                       snapshot.market.changePercent >= 0 
-                        ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" 
-                        : "bg-rose-500/10 text-rose-700 border-rose-500/20"
+                        ? "bg-neutral-100 text-neutral-900 border-neutral-900" 
+                        : "bg-neutral-900 text-white border-neutral-950"
                     }`}>
                       {snapshot.market.changePercent >= 0 ? "+" : ""}
                       {snapshot.market.changePercent.toFixed(2)}%
@@ -591,44 +592,44 @@ export default function ResearchPage(props: PageProps) {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 flex-1 w-full">
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Prev Close</span>
+                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Prev Close</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatCurrency(snapshot.market.previousClose, currency)}
                     </span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Session High</span>
+                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Session High</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatCurrency(snapshot.market.high, currency)}
                     </span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Session Low</span>
+                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Session Low</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatCurrency(snapshot.market.low, currency)}
                     </span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Volume</span>
+                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Volume</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatLargeNumber(snapshot.market.volume)}
                     </span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">P/E Ratio</span>
+                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">P/E Ratio</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {snapshot.market.pe !== null ? snapshot.market.pe.toFixed(2) : "N/A"}
                     </span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">P/B Ratio</span>
+                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">P/B Ratio</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {snapshot.market.pb !== null ? snapshot.market.pb.toFixed(2) : "N/A"}
                     </span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">EPS</span>
+                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">EPS</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {snapshot.market.eps !== null ? snapshot.market.eps.toFixed(2) : "N/A"}
                     </span>
@@ -638,23 +639,23 @@ export default function ResearchPage(props: PageProps) {
 
               {/* Cross provider comparison alert */}
               {snapshot.validation && snapshot.validation.status !== "unchecked" && (
-                <div className="bg-slate-50 border border-border/80 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="bg-neutral-50 border border-neutral-200 p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold mb-0.5">Cross-Provider Quote Verification Alert</span>
+                    <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold mb-0.5 font-mono">Cross-Provider Quote Verification Alert</span>
                     <p className="text-xs text-foreground-secondary font-medium leading-relaxed">
                       Primary provider <span className="font-bold text-foreground">{snapshot.validation.primarySource}</span> was compared against secondary reference <span className="font-bold text-foreground">{snapshot.validation.comparedSource}</span>.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     {snapshot.validation.deviationPercent !== null && (
-                      <span className="text-2xs text-foreground-secondary font-mono bg-white px-2 py-0.5 rounded border border-border">
+                      <span className="text-2xs text-foreground-secondary font-mono bg-white px-2 py-0.5 border border-foreground">
                         Deviation: {snapshot.validation.deviationPercent.toFixed(4)}%
                       </span>
                     )}
-                    <span className={`text-8xs font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${
+                    <span className={`text-8xs font-black uppercase tracking-widest px-2 py-0.5 border ${
                       snapshot.validation.status === "consistent"
-                        ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-                        : "bg-amber-500/10 text-amber-700 border-amber-500/20"
+                        ? "bg-neutral-100 text-neutral-900 border-neutral-900"
+                        : "bg-neutral-900 text-white border-neutral-950"
                     }`}>
                       {snapshot.validation.status}
                     </span>
@@ -666,19 +667,19 @@ export default function ResearchPage(props: PageProps) {
         )}
 
         {activeTab === "price-trend" && (
-          <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-6 animate-fadeIn">
-            <div className="flex justify-between items-center border-b border-border pb-3">
+          <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-6 animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-foreground pb-3">
               <div>
-                <h3 className="text-base font-bold text-foreground">3. Price History (Last 2–3 Years)</h3>
-                <p className="text-2xs text-foreground-secondary">Factual daily historical closing prices and compound returns over the length</p>
+                <h3 className="text-sm font-black text-foreground uppercase tracking-tight">3. Price History (Last 2–3 Years)</h3>
+                <p className="text-2xs text-foreground-secondary font-mono">Factual daily historical closing prices and compound returns over the length</p>
               </div>
-              <span className={`px-2.5 py-0.5 rounded-lg text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.priceHistory.status)}`}>
+              <span className={`px-2 py-0.5 text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.priceHistory.status)}`}>
                 {snapshot.categoryAssessments.priceHistory.status}
               </span>
             </div>
 
             {points.length === 0 ? (
-              <div className="py-12 text-center text-xs text-foreground-muted border border-dashed border-border rounded-xl">
+              <div className="py-12 text-center text-xs text-foreground-muted border border-dashed border-foreground font-mono">
                 No historical price data points fetched.
               </div>
             ) : (
@@ -690,8 +691,7 @@ export default function ResearchPage(props: PageProps) {
                   const maxPrice = Math.max(...points.map(p => p.price));
                   const totalReturn = ((endPrice - startPrice) / startPrice) * 100;
 
-                  const strokeColor = totalReturn >= 0 ? "#10b981" : "#f43f5e";
-                  const fillGradient = totalReturn >= 0 ? "url(#emeraldGradient)" : "url(#roseGradient)";
+                  const strokeColor = "#111111";
 
                   // SVG calculation
                   const priceRange = maxPrice - minPrice || 1;
@@ -716,22 +716,22 @@ export default function ResearchPage(props: PageProps) {
                   return (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                          <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Start Price ({points[0].date})</span>
+                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                          <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Start Price ({points[0].date})</span>
                           <span className="text-sm font-bold text-foreground font-mono">{formatCurrency(startPrice, currency)}</span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                          <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">End Price ({points[points.length - 1].date})</span>
+                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                          <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">End Price ({points[points.length - 1].date})</span>
                           <span className="text-sm font-bold text-foreground font-mono">{formatCurrency(endPrice, currency)}</span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                          <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">Period Return</span>
-                          <span className={`text-sm font-black font-mono ${totalReturn >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                          <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Period Return</span>
+                          <span className={`text-sm font-black font-mono ${totalReturn >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
                             {totalReturn >= 0 ? "+" : ""}{totalReturn.toFixed(2)}%
                           </span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                          <span className="text-8xs text-foreground-muted uppercase tracking-wider block font-bold">High / Low Peaks</span>
+                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                          <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">High / Low Peaks</span>
                           <span className="text-xs font-bold text-foreground font-mono">
                             {formatCurrency(minPrice, currency)} - {formatCurrency(maxPrice, currency)}
                           </span>
@@ -739,33 +739,29 @@ export default function ResearchPage(props: PageProps) {
                       </div>
 
                       {/* Line Chart */}
-                      <div className="relative border border-border/80 rounded-xl bg-slate-50 p-4 overflow-hidden">
+                      <div className="relative border border-foreground bg-white p-4 overflow-hidden shadow-[2px_2px_0px_0px_#111111]">
                         <svg viewBox="0 0 1000 240" className="w-full h-56 overflow-visible" preserveAspectRatio="none">
                           <defs>
-                            <linearGradient id="emeraldGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#10b981" stopOpacity="0.15"/>
-                              <stop offset="100%" stopColor="#10b981" stopOpacity="0.0"/>
-                            </linearGradient>
-                            <linearGradient id="roseGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.15"/>
-                              <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0"/>
+                            <linearGradient id="monoGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#111111" stopOpacity="0.08"/>
+                              <stop offset="100%" stopColor="#111111" stopOpacity="0.0"/>
                             </linearGradient>
                           </defs>
                           
                           {/* Grid Lines */}
-                          <line x1="0" y1="60" x2="1000" y2="60" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
-                          <line x1="0" y1="120" x2="1000" y2="120" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
-                          <line x1="0" y1="180" x2="1000" y2="180" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
+                          <line x1="0" y1="60" x2="1000" y2="60" stroke="#e5e5e5" strokeDasharray="2 2" strokeWidth="1" />
+                          <line x1="0" y1="120" x2="1000" y2="120" stroke="#e5e5e5" strokeDasharray="2 2" strokeWidth="1" />
+                          <line x1="0" y1="180" x2="1000" y2="180" stroke="#e5e5e5" strokeDasharray="2 2" strokeWidth="1" />
 
                           {/* Fill */}
-                          <path d={areaPath} fill={fillGradient} />
+                          <path d={areaPath} fill="url(#monoGradient)" />
 
                           {/* Path line */}
-                          <path d={chartPath} fill="none" stroke={strokeColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d={chartPath} fill="none" stroke={strokeColor} strokeWidth="3" strokeLinecap="square" strokeLinejoin="miter" />
                         </svg>
 
                         {/* Labels */}
-                        <div className="flex justify-between text-8xs text-foreground-secondary font-mono mt-2 uppercase">
+                        <div className="flex justify-between text-8xs text-foreground-secondary font-mono mt-2 uppercase font-bold">
                           <span>{points[0].date}</span>
                           <span>{points[Math.floor(points.length / 2)].date}</span>
                           <span>{points[points.length - 1].date}</span>
@@ -785,27 +781,27 @@ export default function ResearchPage(props: PageProps) {
         {activeTab === "financials" && (
           <div className="space-y-6 animate-fadeIn">
             {/* Financial strength */}
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-border pb-3">
+            <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-4">
+              <div className="flex justify-between items-center border-b border-foreground pb-3">
                 <div>
-                  <h3 className="text-base font-bold text-foreground">4. Financial Capacity & Strength</h3>
-                  <p className="text-2xs text-foreground-secondary">Annual balance sheet strength, leverage capacities, and equity returns</p>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">4. Financial Capacity & Strength</h3>
+                  <p className="text-2xs text-foreground-secondary font-mono">Annual balance sheet strength, leverage capacities, and equity returns</p>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-lg text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.financialCapacity.status)}`}>
+                <span className={`px-2 py-0.5 text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.financialCapacity.status)}`}>
                   {snapshot.categoryAssessments.financialCapacity.status}
                 </span>
               </div>
 
               {snapshot.financials.length === 0 ? (
-                <div className="py-12 text-center text-xs text-foreground-muted border border-dashed border-border rounded-xl">
+                <div className="py-12 text-center text-xs text-foreground-muted border border-dashed border-foreground font-mono">
                   No fundamental financial statements resolved.
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="overflow-x-auto border border-border rounded-xl">
-                    <table className="w-full text-left border-collapse text-xs">
+                  <div className="overflow-x-auto border border-foreground">
+                    <table className="w-full text-left border-collapse text-2xs">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-border text-foreground-secondary font-bold">
+                        <tr className="bg-neutral-100 border-b border-foreground text-foreground font-bold font-mono uppercase">
                           <th className="p-3">Year</th>
                           <th className="p-3">Revenue</th>
                           <th className="p-3">Net Income</th>
@@ -816,14 +812,14 @@ export default function ResearchPage(props: PageProps) {
                           <th className="p-3">ROE</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border">
+                      <tbody className="divide-y divide-neutral-200">
                         {snapshot.financials.map((f: any) => {
                           const equity = (f.totalAssets !== null && f.totalLiabilities !== null) ? (f.totalAssets - f.totalLiabilities) : null;
                           return (
-                            <tr key={f.year} className="hover:bg-slate-50/50 text-foreground-secondary font-mono font-medium">
+                            <tr key={f.year} className="hover:bg-neutral-50 text-foreground-secondary font-mono">
                               <td className="p-3 font-sans font-bold text-foreground">{f.year}</td>
                               <td className="p-3">{formatLargeNumber(f.revenue, true, currency)}</td>
-                              <td className={`p-3 font-bold ${f.netIncome >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              <td className={`p-3 font-bold ${f.netIncome >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
                                 {formatLargeNumber(f.netIncome, true, currency)}
                               </td>
                               <td className="p-3">{formatLargeNumber(f.totalAssets, true, currency)}</td>
@@ -845,44 +841,44 @@ export default function ResearchPage(props: PageProps) {
             </div>
 
             {/* Cash flow health */}
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-border pb-3">
+            <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-4">
+              <div className="flex justify-between items-center border-b border-foreground pb-3">
                 <div>
-                  <h3 className="text-base font-bold text-foreground">5. Cash Flow Analysis</h3>
-                  <p className="text-2xs text-foreground-secondary">Operational liquidity generation and calculated free cash flow values</p>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">5. Cash Flow Analysis</h3>
+                  <p className="text-2xs text-foreground-secondary font-mono">Operational liquidity generation and calculated free cash flow values</p>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-lg text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.cashFlow.status)}`}>
+                <span className={`px-2 py-0.5 text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.cashFlow.status)}`}>
                   {snapshot.categoryAssessments.cashFlow.status}
                 </span>
               </div>
 
               {snapshot.financials.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-400 border border-dashed border-border rounded-xl">
+                <div className="py-12 text-center text-xs text-neutral-400 border border-dashed border-foreground font-mono">
                   No cash flow statements resolved.
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="overflow-x-auto border border-border rounded-xl">
-                    <table className="w-full text-left border-collapse text-xs">
+                  <div className="overflow-x-auto border border-foreground">
+                    <table className="w-full text-left border-collapse text-2xs">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-border text-foreground-secondary font-bold">
+                        <tr className="bg-neutral-100 border-b border-foreground text-foreground font-bold font-mono uppercase">
                           <th className="p-3">Year</th>
                           <th className="p-3">Operating Cash Flow</th>
                           <th className="p-3">Capex (Calculated)</th>
                           <th className="p-3">Free Cash Flow</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border">
+                      <tbody className="divide-y divide-neutral-200">
                         {snapshot.financials.map((f: any) => {
                           const capex = (f.operatingCashFlow !== null && f.freeCashFlow !== null) ? (f.operatingCashFlow - f.freeCashFlow) : null;
                           return (
-                            <tr key={f.year} className="hover:bg-slate-50/50 text-foreground-secondary font-mono font-medium">
+                            <tr key={f.year} className="hover:bg-neutral-50 text-foreground-secondary font-mono">
                               <td className="p-3 font-sans font-bold text-foreground">{f.year}</td>
-                              <td className={`p-3 ${f.operatingCashFlow >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              <td className={`p-3 ${f.operatingCashFlow >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
                                 {formatLargeNumber(f.operatingCashFlow, true, currency)}
                               </td>
                               <td className="p-3">{formatLargeNumber(capex, true, currency)}</td>
-                              <td className={`p-3 font-bold ${f.freeCashFlow >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              <td className={`p-3 font-bold ${f.freeCashFlow >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
                                 {formatLargeNumber(f.freeCashFlow, true, currency)}
                               </td>
                             </tr>
@@ -901,19 +897,19 @@ export default function ResearchPage(props: PageProps) {
         )}
 
         {activeTab === "news" && (
-          <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-6 animate-fadeIn">
-            <div className="flex justify-between items-center border-b border-border pb-3">
+          <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-6 animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-foreground pb-3">
               <div>
-                <h3 className="text-base font-bold text-foreground">6. Market News & Mentions</h3>
-                <p className="text-2xs text-foreground-secondary">Recent aggregated news headlines, articles, and references</p>
+                <h3 className="text-sm font-black text-foreground uppercase tracking-tight">6. Market News & Mentions</h3>
+                <p className="text-2xs text-foreground-secondary font-mono">Recent aggregated news headlines, articles, and references</p>
               </div>
-              <span className={`px-2.5 py-0.5 rounded-lg text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.news.status)}`}>
+              <span className={`px-2 py-0.5 text-8xs border font-extrabold uppercase ${getCategoryStatusClass(snapshot.categoryAssessments.news.status)}`}>
                 Sentiment: {snapshot.categoryAssessments.news.status}
               </span>
             </div>
 
             {snapshot.news.length === 0 ? (
-              <div className="py-12 text-center text-xs text-foreground-muted border border-dashed border-border rounded-xl">
+              <div className="py-12 text-center text-xs text-foreground-muted border border-dashed border-foreground font-mono">
                 No recent news headlines fetched.
               </div>
             ) : (
@@ -922,14 +918,14 @@ export default function ResearchPage(props: PageProps) {
                   {snapshot.news.slice(0, 6).map((item: any, idx: number) => (
                     <div 
                       key={idx} 
-                      className="border border-border/80 rounded-xl p-4 bg-slate-50 hover:shadow-xs transition-shadow flex flex-col justify-between space-y-3"
+                      className="border border-foreground p-4 bg-white shadow-[2px_2px_0px_0px_#111111] flex flex-col justify-between space-y-3"
                     >
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center text-8xs text-foreground-muted font-mono uppercase font-bold">
                           <span>{item.source || "Unknown Source"}</span>
                           <span>{item.date ? new Date(item.date).toLocaleDateString() : "Recent"}</span>
                         </div>
-                        <h4 className="text-xs font-bold text-foreground leading-snug line-clamp-2">{item.title}</h4>
+                        <h4 className="text-xs font-bold text-foreground leading-snug line-clamp-2 uppercase">{item.title}</h4>
                         {item.summary && (
                           <p className="text-2xs text-foreground-secondary leading-relaxed line-clamp-3 font-medium">
                             {item.summary}
@@ -941,7 +937,7 @@ export default function ResearchPage(props: PageProps) {
                           href={item.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-2xs font-bold text-primary hover:underline self-start flex items-center gap-1"
+                          className="text-2xs font-bold text-foreground hover:underline underline self-start flex items-center gap-1 font-mono uppercase"
                         >
                           Read Article
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -961,51 +957,51 @@ export default function ResearchPage(props: PageProps) {
         )}
 
         {activeTab === "evidence" && (
-          <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-6 animate-fadeIn">
+          <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-6 animate-fadeIn">
             {analysisRunResult.status === "unavailable" || !analysisRunResult.analysis ? (
               <div className="space-y-6">
-                <div className="flex justify-between items-center border-b border-border pb-4">
+                <div className="flex justify-between items-center border-b border-foreground pb-4">
                   <div>
-                    <h3 className="text-base font-bold text-foreground">7. Evidence Synthesis & Balance</h3>
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-tight">7. Evidence Synthesis & Balance</h3>
                     <p className="text-xs text-foreground-muted mt-0.5">
                       Qualitative AI synthesis evidence is currently unavailable
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-lg border text-8xs font-mono font-bold uppercase bg-rose-500/10 text-rose-600 border-rose-500/20">
+                  <span className="px-2 py-0.5 border text-8xs font-mono font-bold uppercase bg-neutral-900 text-white">
                     UNAVAILABLE
                   </span>
                 </div>
 
                 <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-600">
+                  <div className="w-12 h-12 border border-foreground flex items-center justify-center text-foreground">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                   </div>
                   <div className="space-y-1">
-                    <h4 className="text-sm font-bold text-foreground">AI Analysis Synthesis Failed</h4>
+                    <h4 className="text-sm font-bold text-foreground uppercase">AI Analysis Synthesis Failed</h4>
                     <p className="text-xs text-foreground-secondary max-w-md mx-auto leading-relaxed font-medium">
-                      Groq API requests failed or returned schema discrepancies. Deterministic fallbacks are deactivated to protect financial integrity.
+                      Orchestrator API requests failed or returned schema discrepancies. Fallbacks are deactivated to protect financial integrity.
                     </p>
                   </div>
                 </div>
 
                 {/* Attempt breakdown logs */}
-                <div className="border-t border-border pt-4 space-y-3">
-                  <span className="text-8xs font-bold text-foreground-muted uppercase tracking-wider block">AI Orchestrator Execution Log</span>
+                <div className="border-t border-foreground pt-4 space-y-3">
+                  <span className="text-8xs font-bold text-foreground-muted uppercase tracking-widest block font-mono">AI Orchestrator Execution Log</span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {analysisRunResult.attempts?.map((attempt: any, idx: number) => (
-                      <div key={idx} className="border border-slate-100 rounded-xl p-3 bg-slate-50 text-xs space-y-1.5 font-medium">
-                        <div className="flex justify-between items-center">
+                      <div key={idx} className="border border-foreground p-3 bg-white text-xs space-y-1.5 font-medium shadow-[2px_2px_0px_0px_#111111]">
+                        <div className="flex justify-between items-center font-mono">
                           <span className="font-extrabold text-foreground uppercase">{attempt.provider}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-8xs border font-black uppercase ${
+                          <span className={`px-1.5 py-0.5 text-8xs border font-black uppercase ${
                             attempt.status === "success" 
-                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" 
-                              : "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                              ? "bg-neutral-100 text-neutral-900 border-neutral-900" 
+                              : "bg-neutral-900 text-white border-neutral-950"
                           }`}>{attempt.status}</span>
                         </div>
                         <div className="text-8xs text-foreground-secondary font-mono">Model: {attempt.model} ({attempt.durationMs}ms)</div>
-                        {attempt.message && <div className="text-8xs text-rose-500 font-mono mt-1 break-all line-clamp-2">{attempt.message}</div>}
+                        {attempt.message && <div className="text-8xs text-neutral-900 font-mono mt-1 break-all line-clamp-2">{attempt.message}</div>}
                       </div>
                     ))}
                   </div>
@@ -1013,38 +1009,38 @@ export default function ResearchPage(props: PageProps) {
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="flex justify-between items-center border-b border-border pb-4">
+                <div className="flex justify-between items-center border-b border-foreground pb-4">
                   <div>
-                    <h3 className="text-base font-bold text-foreground">7. Evidence Synthesis & Balance</h3>
-                    <p className="text-2xs text-foreground-secondary mt-0.5">
-                      Qualitative evidence details compiled by specialist model: <span className="font-bold text-foreground uppercase">Groq{analysisRunResult.model ? ` (${analysisRunResult.model})` : ""}</span>
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-tight">7. Evidence Synthesis & Balance</h3>
+                    <p className="text-2xs text-foreground-secondary mt-0.5 font-mono">
+                      Qualitative evidence details compiled by specialist model: <span className="font-bold text-foreground uppercase">{analysisRunResult.model || "Consensus Engine"}</span>
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-lg border text-8xs font-mono font-bold uppercase bg-orange-500/10 text-orange-600 border-orange-500/20">
-                    Groq Live Synthesis
+                  <span className="px-2 py-0.5 border text-8xs font-mono font-bold uppercase bg-neutral-100 text-neutral-900 border-neutral-900">
+                    Live Synthesis Consensus
                   </span>
                 </div>
 
                 {/* Strengths & Concerns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="border border-emerald-500/10 rounded-xl p-4 bg-emerald-500/5 space-y-2">
-                    <span className="font-extrabold text-xs text-emerald-800 uppercase block tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                  <div className="border border-foreground p-4 bg-white space-y-2 shadow-[3px_3px_0px_0px_#111111]">
+                    <span className="font-extrabold text-xs text-foreground uppercase block tracking-wider flex items-center gap-1.5 font-mono">
+                      <span className="w-1.5 h-1.5 bg-foreground"></span>
                       Key Strengths
                     </span>
-                    <ul className="text-xs text-emerald-950 list-disc list-inside space-y-1.5">
+                    <ul className="text-xs text-foreground list-disc list-inside space-y-1.5">
                       {analysisRunResult.analysis.strengths?.slice(0, 4).map((s: string, idx: number) => (
                         <li key={idx} className="leading-snug text-2xs font-medium">{s}</li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="border border-rose-500/10 rounded-xl p-4 bg-rose-500/5 space-y-2">
-                    <span className="font-extrabold text-xs text-rose-800 uppercase block tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                  <div className="border border-foreground p-4 bg-white space-y-2 shadow-[3px_3px_0px_0px_#111111]">
+                    <span className="font-extrabold text-xs text-foreground uppercase block tracking-wider flex items-center gap-1.5 font-mono">
+                      <span className="w-1.5 h-1.5 bg-foreground"></span>
                       Key Concerns
                     </span>
-                    <ul className="text-xs text-rose-950 list-disc list-inside space-y-1.5">
+                    <ul className="text-xs text-foreground list-disc list-inside space-y-1.5">
                       {analysisRunResult.analysis.concerns?.slice(0, 4).map((c: string, idx: number) => (
                         <li key={idx} className="leading-snug text-2xs font-medium">{c}</li>
                       ))}
@@ -1052,9 +1048,9 @@ export default function ResearchPage(props: PageProps) {
                   </div>
                 </div>
 
-                {/* Cited Evidence Tags (Interlinks down to diagnostics) */}
-                <div className="border-t border-slate-100 pt-4 space-y-2.5">
-                  <span className="text-8xs font-black text-foreground-muted uppercase tracking-wider block">Cited Evidence Index</span>
+                {/* Cited Evidence Tags */}
+                <div className="border-t border-neutral-200 pt-4 space-y-2.5">
+                  <span className="text-8xs font-black text-foreground-muted uppercase tracking-widest block font-mono">Cited Evidence Index</span>
                   <div className="flex flex-wrap gap-2">
                     {analysisRunResult.analysis.citedEvidenceIds?.map((id: string) => {
                       const item = evidenceBundle?.evidenceIndex?.[id];
@@ -1062,10 +1058,10 @@ export default function ResearchPage(props: PageProps) {
                         <button
                           key={id}
                           onClick={() => handleCitationClick(id)}
-                          className="px-2.5 py-1 rounded bg-slate-50 hover:bg-slate-100 border border-border font-mono text-8xs text-foreground flex items-center gap-1.5 transition-all shadow-3xs cursor-pointer"
+                          className="px-2 py-1 bg-white hover:bg-neutral-50 border border-foreground font-mono text-8xs text-foreground flex items-center gap-1.5 transition-all shadow-[2px_2px_0px_0px_#111111] cursor-pointer"
                         >
-                          <span className="font-extrabold text-primary">{id}</span>
-                          <span className="text-foreground-secondary border-l border-slate-200 pl-1.5">
+                          <span className="font-extrabold text-foreground">{id}</span>
+                          <span className="text-foreground-secondary border-l border-neutral-200 pl-1.5">
                             {item ? `${item.provider} (${item.endpoint})` : "Factual citation reference"}
                           </span>
                         </button>
@@ -1081,17 +1077,17 @@ export default function ResearchPage(props: PageProps) {
         {activeTab === "audit" && (
           <div className="space-y-6 animate-fadeIn">
             {/* Interactive developer simulation panel */}
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-foreground">Advanced Developer Simulation</h3>
-              <p className="text-2xs text-foreground-secondary">Override LLM query responses or simulate network/auth rate limits on live fetches</p>
+            <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-4">
+              <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Advanced Developer Simulation</h3>
+              <p className="text-2xs text-foreground-secondary font-mono">Override LLM query responses or simulate network/auth rate limits on live fetches</p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-8xs font-bold text-foreground-muted uppercase tracking-wider">Simulate Groq Failures</label>
+                  <label className="text-8xs font-bold text-foreground-muted uppercase tracking-widest font-mono">Simulate Consensus Failures</label>
                   <select
                     value={simulateGroq}
                     onChange={(e) => handleSimulationChange(e.target.value)}
-                    className="w-full text-xs px-3 py-2 bg-slate-50 border border-border rounded-lg focus:outline-none"
+                    className="w-full text-xs px-3 py-2 bg-white border border-foreground font-mono focus:outline-none"
                   >
                     <option value="">Live API calls (Normal)</option>
                     <option value="rate_limit">Rate Limit (429)</option>
@@ -1104,26 +1100,28 @@ export default function ResearchPage(props: PageProps) {
                 <div className="flex items-end">
                   <button
                     onClick={runResearch}
-                    className="w-full sm:w-auto px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2 bg-foreground text-white border border-foreground hover:bg-neutral-800 text-xs font-bold shadow-[2px_2px_0px_0px_#737373] transition-all cursor-pointer font-mono"
                   >
-                    Re-run with Simulation Settings
+                    RE-RUN WITH SIMULATION SETTINGS
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Provider endpoints logs */}
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-border pb-3">
+            <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-4">
+              <div className="flex justify-between items-center border-b border-foreground pb-3">
                 <div>
-                  <h3 className="text-base font-bold text-foreground">Diagnostics Endpoint Logs</h3>
-                  <p className="text-2xs text-foreground-secondary">Detailed execution status and latency metrics for each registry call</p>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Diagnostics Endpoint Logs</h3>
+                  <p className="text-2xs text-foreground-secondary font-mono">Detailed execution status and latency metrics for each registry call</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 font-mono">
                   <button
                     onClick={() => setActiveProviderFilter(null)}
-                    className={`px-2.5 py-1 text-8xs font-bold rounded-md ${
-                      !activeProviderFilter ? "bg-slate-900 text-white" : "bg-slate-50 text-foreground-secondary border border-border"
+                    className={`px-2 py-1 text-8xs font-bold border cursor-pointer uppercase ${
+                      !activeProviderFilter 
+                        ? "bg-foreground text-white border-foreground" 
+                        : "bg-white text-foreground border-foreground hover:bg-neutral-50"
                     }`}
                   >
                     All
@@ -1132,8 +1130,10 @@ export default function ResearchPage(props: PageProps) {
                     <button
                       key={providerName}
                       onClick={() => setActiveProviderFilter(providerName)}
-                      className={`px-2.5 py-1 text-8xs font-bold rounded-md uppercase ${
-                        activeProviderFilter === providerName ? "bg-slate-900 text-white" : "bg-slate-50 text-foreground-secondary border border-border"
+                      className={`px-2 py-1 text-8xs font-bold border cursor-pointer uppercase ${
+                        activeProviderFilter === providerName 
+                          ? "bg-foreground text-white border-foreground" 
+                          : "bg-white text-foreground border-foreground hover:bg-neutral-50"
                       }`}
                     >
                       {providerName}
@@ -1142,7 +1142,7 @@ export default function ResearchPage(props: PageProps) {
                 </div>
               </div>
 
-              <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
+              <div className="divide-y divide-foreground border border-foreground overflow-hidden">
                 {allEndpoints
                   .filter((e: any) => !activeProviderFilter || e.provider === activeProviderFilter)
                   .map((e: any) => {
@@ -1152,24 +1152,24 @@ export default function ResearchPage(props: PageProps) {
                       <div key={key} className="bg-white" id={key}>
                         <button
                           onClick={() => toggleEndpoint(key)}
-                          className="w-full px-4 py-3 hover:bg-slate-50 flex justify-between items-center text-xs transition-colors"
+                          className="w-full px-4 py-3 hover:bg-neutral-50 flex justify-between items-center text-xs transition-colors cursor-pointer"
                         >
                           <div className="flex items-center gap-3">
-                            <span className="font-extrabold uppercase text-foreground shrink-0">{e.provider}</span>
+                            <span className="font-extrabold uppercase text-foreground shrink-0 font-mono">{e.provider}</span>
                             <span className="text-foreground-secondary font-mono">{e.endpointName}</span>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-8xs text-foreground-muted font-mono">{e.durationMs}ms</span>
-                            <span className={`px-1.5 py-0.5 rounded text-8xs font-black uppercase border ${getStatusBadgeClass(e.status)}`}>
+                          <div className="flex items-center gap-3 font-mono">
+                            <span className="text-8xs text-foreground-muted">{e.durationMs}ms</span>
+                            <span className={`px-1.5 py-0.5 text-8xs font-black uppercase border ${getStatusBadgeClass(e.status)}`}>
                               {e.status}
                             </span>
                           </div>
                         </button>
                         {isExpanded && (
-                          <div className="bg-slate-900 border-t border-slate-800 p-4 font-mono text-8xs text-slate-300 overflow-x-auto max-h-96">
-                            <div className="flex justify-between items-center pb-2 mb-2 border-b border-slate-800">
+                          <div className="bg-neutral-900 border-t border-neutral-800 p-4 font-mono text-8xs text-neutral-300 overflow-x-auto max-h-96">
+                            <div className="flex justify-between items-center pb-2 mb-2 border-b border-neutral-800">
                               <span>Raw HTTP Response Contract</span>
-                              <span className="text-slate-500">Status code: {e.httpStatus || "N/A"}</span>
+                              <span className="text-neutral-500">Status code: {e.httpStatus || "N/A"}</span>
                             </div>
                             <pre className="whitespace-pre-wrap">{JSON.stringify(e.response, null, 2)}</pre>
                           </div>
@@ -1181,9 +1181,9 @@ export default function ResearchPage(props: PageProps) {
             </div>
 
             {/* Evidence Index Tracing Section */}
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-foreground">Factual Evidence Index</h3>
-              <p className="text-2xs text-foreground-secondary">Trace citations directly back to parsed evidence bundles</p>
+            <div className="bg-white border-2 border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] space-y-4">
+              <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Factual Evidence Index</h3>
+              <p className="text-2xs text-foreground-secondary font-mono">Trace citations directly back to parsed evidence bundles</p>
               
               <div className="space-y-3">
                 {Object.keys(evidenceBundle.evidenceIndex || {}).map((id) => {
@@ -1192,14 +1192,14 @@ export default function ResearchPage(props: PageProps) {
                     <div 
                       key={id}
                       ref={(el) => { evidenceRefs.current[id] = el; }}
-                      className="p-4 border border-border hover:border-slate-300 rounded-xl bg-slate-50 transition-all flex flex-col sm:flex-row justify-between gap-3"
+                      className="p-4 border border-foreground bg-white shadow-[2px_2px_0px_0px_#111111] transition-all flex flex-col sm:flex-row justify-between gap-3"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-xs text-primary bg-slate-200/60 px-2 py-0.5 rounded">
+                          <span className="font-mono font-black text-xs text-white bg-foreground px-2 py-0.5 border border-foreground">
                             {id}
                           </span>
-                          <span className="text-8xs font-bold text-foreground-secondary uppercase tracking-wider">
+                          <span className="text-8xs font-bold text-foreground-secondary uppercase tracking-widest font-mono">
                             {ev.provider} ({ev.endpoint})
                           </span>
                         </div>
@@ -1207,7 +1207,7 @@ export default function ResearchPage(props: PageProps) {
                           {typeof ev.data === "object" ? JSON.stringify(ev.data, null, 2) : String(ev.data)}
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="text-right shrink-0 font-mono">
                         <span className="text-8xs text-foreground-muted block font-mono">OBSERVED AT</span>
                         <span className="text-8xs font-semibold text-foreground block font-mono mt-0.5">
                           {ev.observedAt ? new Date(ev.observedAt).toLocaleTimeString() : "N/A"}

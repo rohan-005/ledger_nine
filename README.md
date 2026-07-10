@@ -26,8 +26,10 @@ The entire research lifecycle is executed as a deterministic state machine using
 
 ### User Experience
 * **Home Page**: Features a debounced dynamic company search resolving US and Indian equities, visual provider health-check statuses, and educational cards detailing the evidence-only framework.
-* **Research Page**: Prioritizes an immediate, prominent **INVEST** or **PASS** verdict visible on the first viewport screen. Users can navigate tabs for interactive price charts (2–3 year history), balance sheet metrics, operating cash flow, recent market news, and a full evidence audit sheet.
-* **Animated Loading Experience**: During API data collection, instead of a fake progress bar, an interactive loading screen displays orbiting evidence nodes, candlestick signals, and atmospheric messages detailing active registry lookups.
+* **Premium Editorial Layout**: Built around a strict, premium monochrome layout (black, white, and grays only, with green/red badges reserved exclusively for verdicts) inspired by financial journals and premium terminals. Features sharp corners, 3D offset outline cards, and generous editorial spacing.
+* **Client-Side PDF Generator**: Allows users to download a structured, multi-page professional PDF investment report containing cover pages, executive summaries, stock price trendlines, fundamental financials, news sentiment aggregates, diagnostic audit logs, and professional disclaimers.
+* **Print-Friendly Styling**: Implements custom CSS print media overrides that hide interactive headers, controls, and animations to print clean, high-contrast monochrome documents directly from the browser.
+* **Animated Loading Experience**: During API data collection, instead of a fake progress bar, an interactive loading screen displays orbiting evidence nodes, candlestick signals, and atmospheric messages detailing active registry lookups in matching grayscale.
 
 -----
 

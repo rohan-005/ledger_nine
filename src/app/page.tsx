@@ -70,7 +70,6 @@ export default function HomePage() {
       return;
     }
 
-    // Ignore if input matches a suggestion we selected (e.g. ends with parentheses)
     if (query.includes("(") && query.includes(")")) {
       return;
     }
@@ -113,45 +112,45 @@ export default function HomePage() {
     switch (status) {
       case "working":
       case "success":
-        return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
+        return "bg-neutral-100 text-neutral-900 border-neutral-900";
       case "partial":
-        return "bg-amber-500/10 text-amber-600 border-amber-500/20";
+        return "bg-neutral-50 text-neutral-600 border-neutral-300";
       case "rate_limit":
-        return "bg-rose-500/10 text-rose-600 border-rose-500/20 animate-pulse";
+        return "bg-neutral-100 text-neutral-800 border-neutral-900 border-dashed animate-pulse";
       case "auth_error":
-        return "bg-red-500/10 text-red-600 border-red-500/20 font-bold";
+        return "bg-neutral-900 text-white border-neutral-950 font-bold";
       case "plan_limited":
       case "plan_limit":
-        return "bg-purple-500/10 text-purple-600 border-purple-500/20 font-medium";
+        return "bg-neutral-50 text-neutral-700 border-neutral-400 font-medium";
       default:
-        return "bg-rose-500/10 text-rose-700 border-rose-500/20";
+        return "bg-neutral-100 text-neutral-700 border-neutral-300";
     }
   };
 
   return (
-    <div className="flex-1 bg-background min-h-screen flex flex-col">
-      {/* Hero Section */}
+    <div className="flex-1 bg-background min-h-screen flex flex-col font-sans">
+      {/* Editorial Header Hero */}
       <section 
         id="search-section" 
-        className="relative bg-linear-to-b from-slate-900 to-primary px-6 py-20 md:py-28 text-white text-center flex flex-col items-center justify-center border-b border-border shadow-xs"
+        className="relative bg-white px-6 py-20 md:py-28 text-foreground text-center flex flex-col items-center justify-center border-b-4 border-foreground"
       >
         <div className="max-w-3xl space-y-6">
-          <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-semibold uppercase tracking-wider text-amber-300">
+          <span className="inline-block px-3 py-1 border border-foreground text-foreground text-2xs uppercase tracking-widest font-mono font-bold">
             Autonomous Financial Intelligence
           </span>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
-            Evidence-Driven Investment Research
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-tight uppercase font-sans">
+            Ledger Nine Research Report
           </h1>
-          <p className="text-base md:text-lg text-slate-300 font-medium max-w-2xl mx-auto leading-relaxed">
+          <p className="text-sm md:text-base text-foreground-secondary font-medium max-w-2xl mx-auto leading-relaxed">
             Deterministic diagnostics that verify financials across 7 independent registry providers. 
             No hallucinations, no fabricated data, and complete evidence tracing.
           </p>
 
           {/* Autocomplete Input Container */}
           <div className="w-full max-w-xl mx-auto mt-8 relative" ref={dropdownRef}>
-            <div className="relative shadow-xl rounded-2xl overflow-hidden bg-white/10 backdrop-blur-md p-1.5 border border-white/20">
-              <div className="flex gap-2 bg-white rounded-xl shadow-inner px-3 py-2 items-center">
-                <svg className="w-5 h-5 text-foreground-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="relative bg-white border-2 border-foreground p-1 shadow-[4px_4px_0px_0px_#111111]">
+              <div className="flex gap-2 bg-white px-3 py-2 items-center">
+                <svg className="w-5 h-5 text-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
@@ -159,30 +158,30 @@ export default function HomePage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => query.trim() && setShowDropdown(true)}
-                  placeholder="Search by name or ticker (e.g. AAPL, RELIANCE, TCS...)"
-                  className="w-full bg-transparent border-0 text-foreground text-sm focus:ring-0 focus:outline-none placeholder-foreground-secondary font-medium"
+                  placeholder="Enter company name or ticker (e.g. AAPL, RELIANCE)..."
+                  className="w-full bg-transparent border-0 text-foreground text-sm focus:ring-0 focus:outline-none placeholder-foreground-muted font-medium"
                 />
                 {isSearching && (
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="w-4 h-4 border-2 border-foreground border-t-transparent rounded-full animate-spin shrink-0" />
                 )}
               </div>
             </div>
 
             {/* Suggestions dropdown */}
             {showDropdown && searchResults.length > 0 && (
-              <div className="absolute left-0 right-0 mt-2 bg-white border border-border rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto divide-y divide-border text-left">
+              <div className="absolute left-0 right-0 mt-2 bg-white border-2 border-foreground shadow-[6px_6px_0px_0px_#111111] z-50 max-h-72 overflow-y-auto divide-y divide-neutral-200 text-left">
                 {searchResults.map((item) => (
                   <button
                     key={item.canonicalTicker}
                     onClick={() => handleSelectCompany(item)}
-                    className="w-full px-4 py-3 hover:bg-slate-50 text-left flex justify-between items-center text-sm transition-colors text-foreground"
+                    className="w-full px-4 py-3 hover:bg-neutral-50 text-left flex justify-between items-center text-sm transition-colors text-foreground"
                   >
                     <div>
-                      <span className="font-semibold">{item.name}</span>
+                      <span className="font-bold">{item.name}</span>
                       <span className="ml-2 text-xs text-foreground-secondary">({item.country})</span>
                     </div>
                     <div className="text-right flex items-center gap-2">
-                      <span className="font-mono font-bold text-xs bg-slate-100 text-foreground-secondary px-2.5 py-0.5 rounded border border-border">
+                      <span className="font-mono font-bold text-xs bg-neutral-100 text-foreground px-2 py-0.5 border border-foreground">
                         {item.ticker}
                       </span>
                       <span className="text-2xs text-foreground-secondary w-20 truncate text-right">{item.exchange}</span>
@@ -195,7 +194,7 @@ export default function HomePage() {
 
           {/* Curated Suggestion Chips */}
           <div className="pt-4 flex flex-wrap justify-center gap-2 max-w-xl mx-auto">
-            <span className="text-xs text-slate-400 self-center font-semibold mr-1">Suggestions:</span>
+            <span className="text-xs text-foreground-secondary self-center font-bold mr-1">Curated List:</span>
             {[
               { name: "Apple", ticker: "AAPL", canonical: "AAPL" },
               { name: "Tesla", ticker: "TSLA", canonical: "TSLA" },
@@ -206,10 +205,10 @@ export default function HomePage() {
               <Link
                 key={chip.canonical}
                 href={`/research/${encodeURIComponent(chip.canonical)}`}
-                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/35 text-xs font-semibold text-slate-200 hover:text-white transition-all shadow-2xs"
+                className="px-3 py-1.5 border border-foreground text-xs font-bold text-foreground bg-white hover:bg-neutral-50 shadow-[2px_2px_0px_0px_#111111] transition-all"
               >
-                <span className="font-bold mr-1">{chip.ticker}</span>
-                <span className="text-slate-400 font-normal font-sans">({chip.name})</span>
+                <span className="font-mono font-black mr-1">{chip.ticker}</span>
+                <span className="text-foreground-secondary font-normal font-sans">({chip.name})</span>
               </Link>
             ))}
           </div>
@@ -217,13 +216,13 @@ export default function HomePage() {
       </section>
 
       {/* How it Works Section */}
-      <section id="how-it-works" className="max-w-6xl mx-auto px-6 py-16 md:py-24 space-y-12">
+      <section id="how-it-works" className="max-w-6xl w-full mx-auto px-6 py-16 md:py-24 space-y-12">
         <div className="text-center space-y-3">
-          <h2 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">
-            How Ledger Nine Company Research Works
+          <h2 className="text-2xl md:text-3xl font-black text-foreground uppercase tracking-tight font-sans">
+            Methodology & Flow
           </h2>
-          <p className="text-sm text-foreground-secondary max-w-lg mx-auto leading-relaxed font-medium">
-            A deterministic verification engine that replaces model hallucination with auditable raw evidence.
+          <p className="text-xs md:text-sm text-foreground-secondary max-w-lg mx-auto leading-relaxed font-bold font-mono">
+            DETERMINISTIC VERIFICATION DAG · LANGGRAPH.JS ORCHESTRATION
           </p>
         </div>
 
@@ -258,14 +257,14 @@ export default function HomePage() {
             {
               step: "06",
               title: "LLM Verdict Synthesis",
-              desc: "Groq Llama model assesses qualitative thesis strictly inside the bundle constraints."
+              desc: "OpenRouter & Groq consensus models assess qualitative thesis inside the bundle constraints."
             }
           ].map((item, index) => (
-            <div key={index} className="relative bg-surface border border-border p-5 rounded-2xl shadow-3xs flex flex-col justify-between space-y-4">
-              <span className="text-3xl font-black text-slate-200 font-mono block">{item.step}</span>
-              <div className="space-y-1">
-                <h3 className="text-sm font-bold text-foreground leading-snug">{item.title}</h3>
-                <p className="text-xs text-foreground-secondary leading-relaxed font-medium">{item.desc}</p>
+            <div key={index} className="relative bg-white border border-foreground p-5 shadow-[3px_3px_0px_0px_#111111] flex flex-col justify-between space-y-4">
+              <span className="text-2xl font-black text-foreground font-mono block border-b border-foreground pb-2">{item.step}</span>
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-tight">{item.title}</h3>
+                <p className="text-2xs text-foreground-secondary leading-relaxed font-medium">{item.desc}</p>
               </div>
             </div>
           ))}
@@ -273,14 +272,14 @@ export default function HomePage() {
       </section>
 
       {/* What We Check Section */}
-      <section className="bg-slate-50 border-y border-border">
-        <div className="max-w-6xl mx-auto px-6 py-16 md:py-24 space-y-12">
+      <section className="bg-neutral-50 border-y border-foreground py-16 md:py-24">
+        <div className="max-w-6xl mx-auto px-6 space-y-12">
           <div className="text-center space-y-3">
-            <h2 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">
+            <h2 className="text-2xl md:text-3xl font-black text-foreground uppercase tracking-tight">
               Evidence Checked in Each Audit
             </h2>
-            <p className="text-sm text-foreground-secondary max-w-lg mx-auto leading-relaxed font-medium">
-              We compile factual metrics across five key categories to prevent data gaps or fabrications.
+            <p className="text-xs md:text-sm text-foreground-secondary max-w-lg mx-auto leading-relaxed font-bold font-mono">
+              FACTUAL METRIC CATEGORIES FOR BULLETPROOF EVALUATIONS
             </p>
           </div>
 
@@ -312,11 +311,11 @@ export default function HomePage() {
                 desc: "Calculates market capitalization, shares outstanding volume, and verifies valuation source transparency."
               }
             ].map((card, idx) => (
-              <div key={idx} className="bg-white border border-border p-6 rounded-2xl shadow-xs space-y-3 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <span className="text-6xs font-bold text-orange-600 uppercase tracking-wider block">{card.subtitle}</span>
-                  <h3 className="text-sm font-bold text-foreground leading-snug">{card.title}</h3>
-                  <p className="text-xs text-foreground-secondary leading-relaxed font-medium">{card.desc}</p>
+              <div key={idx} className="bg-white border border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] flex flex-col justify-between">
+                <div className="space-y-3">
+                  <span className="text-8xs font-bold text-foreground-muted uppercase tracking-widest block font-mono">{card.subtitle}</span>
+                  <h3 className="text-xs font-black text-foreground uppercase tracking-tight">{card.title}</h3>
+                  <p className="text-2xs text-foreground-secondary leading-relaxed font-medium">{card.desc}</p>
                 </div>
               </div>
             ))}
@@ -325,14 +324,14 @@ export default function HomePage() {
       </section>
 
       {/* Transparency & Health Indicators Section */}
-      <section className="max-w-6xl mx-auto px-6 py-16 md:py-24 space-y-8 flex-1">
+      <section className="max-w-6xl w-full mx-auto px-6 py-16 md:py-24 space-y-8 flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">
+            <h2 className="text-2xl md:text-3xl font-black text-foreground uppercase tracking-tight">
               Transparency & API Provider Health
             </h2>
-            <p className="text-sm text-foreground-secondary leading-relaxed mt-1 font-medium">
-              Real-time API probe check for auth, availability, and response latency.
+            <p className="text-xs text-foreground-secondary leading-relaxed mt-1 font-mono font-bold">
+              REAL-TIME API STATUS CHECKS AND PROBE LATENCIES
             </p>
           </div>
           <button
@@ -353,10 +352,10 @@ export default function HomePage() {
               }
             }}
             disabled={isCheckingHealth}
-            className="px-4 py-2 border border-border bg-white text-xs font-semibold rounded-lg hover:bg-slate-50 flex items-center gap-2 transition-all shadow-2xs text-foreground cursor-pointer"
+            className="px-4 py-2 border border-foreground bg-white text-xs font-bold text-foreground hover:bg-neutral-50 shadow-[3px_3px_0px_0px_#111111] flex items-center gap-2 transition-all cursor-pointer font-mono"
           >
             {isCheckingHealth && (
-              <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="w-3 h-3 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
             )}
             Force Fresh Probes
           </button>
@@ -367,20 +366,20 @@ export default function HomePage() {
             {healthStatus.map((h) => (
               <div 
                 key={h.provider} 
-                className="bg-white border border-border rounded-xl p-4 space-y-3 shadow-3xs flex flex-col justify-between"
+                className="bg-white border border-foreground p-4 shadow-[2px_2px_0px_0px_#111111] flex flex-col justify-between space-y-3"
               >
                 <div className="flex justify-between items-start">
-                  <span className="font-extrabold text-foreground text-xs">{h.provider}</span>
-                  <span className={`px-2 py-0.5 rounded text-7xs font-black uppercase border ${getStatusBadgeClass(h.status)}`}>
+                  <span className="font-extrabold text-foreground text-xs uppercase font-mono">{h.provider}</span>
+                  <span className={`px-2 py-0.5 text-7xs font-black uppercase border ${getStatusBadgeClass(h.status)}`}>
                     {h.status === "working" ? "ONLINE" : h.status}
                   </span>
                 </div>
-                <p className="text-5xs text-foreground-secondary leading-normal line-clamp-2 font-medium">
+                <p className="text-8xs text-foreground-secondary leading-normal line-clamp-2 font-medium">
                   {h.message}
                 </p>
-                <div className="flex flex-wrap gap-1 border-t border-slate-100 pt-2.5">
+                <div className="flex flex-wrap gap-1 border-t border-neutral-100 pt-2.5">
                   {h.capabilities.map((c, i) => (
-                    <span key={i} className="text-8xs font-semibold bg-slate-100 text-foreground-secondary px-1.5 py-0.5 rounded">
+                    <span key={i} className="text-8xs font-mono font-bold bg-neutral-100 text-foreground px-1.5 py-0.5 border border-neutral-200">
                       {c}
                     </span>
                   ))}
@@ -389,17 +388,17 @@ export default function HomePage() {
             ))}
           </div>
         ) : (
-          <div className="py-12 text-center text-xs text-foreground-secondary border border-dashed border-border rounded-2xl">
+          <div className="py-12 text-center text-xs text-foreground-secondary border border-dashed border-foreground font-mono">
             Loading API health statuses...
           </div>
         )}
       </section>
 
       {/* Final CTA */}
-      <section className="bg-slate-900 px-6 py-16 text-white text-center border-t border-border shadow-inner">
+      <section className="bg-foreground px-6 py-16 text-white text-center border-t border-foreground">
         <div className="max-w-xl mx-auto space-y-4">
-          <h2 className="text-2xl font-black tracking-tight">Ready to verify a stock candidate?</h2>
-          <p className="text-xs text-slate-400 font-medium">
+          <h2 className="text-2xl font-black tracking-tight uppercase">Ready to verify a stock candidate?</h2>
+          <p className="text-xs text-neutral-400 font-medium">
             Enter any global or Indian exchange symbol in the search input above to initiate a clean, transparent, multi-provider audit.
           </p>
           <button 
@@ -407,7 +406,7 @@ export default function HomePage() {
               const el = document.getElementById("search-section");
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
-            className="mt-2 px-6 py-2.5 bg-white text-slate-900 font-bold text-xs rounded-lg hover:bg-slate-100 transition-colors shadow-sm cursor-pointer"
+            className="mt-2 px-6 py-2.5 bg-white text-foreground border border-foreground font-bold text-xs hover:bg-neutral-100 shadow-[3px_3px_0px_0px_#737373] transition-all cursor-pointer font-mono"
           >
             Start Audit Now
           </button>

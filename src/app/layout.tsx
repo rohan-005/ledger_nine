@@ -30,32 +30,32 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <header className="bg-surface border-b border-border px-6 py-4 flex items-center justify-between shrink-0">
+        <header className="bg-surface border-b-2 border-foreground px-6 py-4 flex items-center justify-between shrink-0 no-print">
           <Link
             href="/"
-            className="font-sans font-extrabold text-lg text-foreground hover:text-primary tracking-tight focus:outline-none focus:underline"
+            className="font-sans font-black text-xl text-foreground tracking-tight uppercase hover:opacity-85 focus:outline-none"
           >
             Ledger Nine
           </Link>
           <nav aria-label="Primary navigation" className="flex items-center gap-6">
             <Link
               href="/#how-it-works"
-              className="text-sm font-medium text-foreground-secondary hover:text-foreground transition-colors focus:outline-none focus:underline"
+              className="text-xs font-bold uppercase tracking-wider text-foreground-secondary hover:text-foreground transition-colors focus:outline-none focus:underline"
             >
-              How it works
+              Methodology
             </Link>
             <Link
               href="/#search-section"
-              className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="text-xs font-bold uppercase tracking-wider px-4 py-2 border border-foreground bg-foreground text-white hover:bg-neutral-800 transition-colors shadow-[2px_2px_0px_0px_#737373] focus:outline-none"
             >
-              Research a Company
+              Analyze Company
             </Link>
           </nav>
         </header>
 
         <main className="flex-1 flex flex-col">{children}</main>
 
-        <footer className="bg-surface border-t border-border px-6 py-4 text-xs text-foreground-muted shrink-0 text-center">
+        <footer className="bg-surface border-t border-foreground px-6 py-6 text-2xs uppercase tracking-widest font-mono text-foreground-muted shrink-0 text-center no-print">
           © {new Date().getFullYear()} Ledger Nine. All investment decisions are deterministic. Research analysis is for educational purposes only.
         </footer>
       </body>

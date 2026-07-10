@@ -18,7 +18,7 @@ const loadingMessages = [
   "Understanding valuation, P/E, and market value context...",
   "Checking multi-provider evidence completeness...",
   "Preparing raw statement evidence for LLM interpretation...",
-  "Orchestrating Groq AI engine for final investment synthesis..."
+  "Orchestrating AI consensus models for final investment synthesis..."
 ];
 
 export default function ResearchLoadingExperience({
@@ -126,8 +126,8 @@ export default function ResearchLoadingExperience({
           to { transform: rotate(-360deg); }
         }
         @keyframes pulse-core {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-          50% { transform: scale(1.06); box-shadow: 0 0 20px 8px rgba(245, 158, 11, 0.15); }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.2); }
+          50% { transform: scale(1.06); box-shadow: 0 0 20px 8px rgba(0, 0, 0, 0.08); }
         }
         @keyframes float-up {
           0% { transform: translateY(20px); opacity: 0; }
@@ -178,7 +178,7 @@ export default function ResearchLoadingExperience({
             transform: none !important;
           }
           .pulse-center {
-            border: 2px solid #f59e0b !important;
+            border: 2px solid #111111 !important;
           }
         }
       `}</style>
@@ -189,7 +189,7 @@ export default function ResearchLoadingExperience({
           <span
             key={idx}
             className={`absolute font-mono text-xs font-bold text-foreground-muted/30 floating-element ${
-              sym.isTicker ? "bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10 font-bold text-amber-700/40" : ""
+              sym.isTicker ? "bg-neutral-100 px-2 py-0.5 border border-neutral-200 font-bold text-neutral-600/40" : ""
             }`}
             style={{
               top: sym.top,
@@ -205,14 +205,14 @@ export default function ResearchLoadingExperience({
 
       {/* Header Info */}
       <div className="text-center space-y-2 z-10">
-        <span className="text-8xs font-black text-amber-700 uppercase tracking-widest bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/20">
+        <span className="inline-block px-3 py-1 border border-foreground text-foreground text-2xs uppercase tracking-widest font-mono font-bold">
           Gathering Evidence
         </span>
-        <h2 className="text-lg font-black text-foreground">
+        <h2 className="text-lg font-black text-foreground uppercase tracking-tight">
           Auditing {companyName || ticker}
         </h2>
         <p className="text-xs text-foreground-secondary font-medium">
-          Ticker: <span className="font-mono font-black text-foreground bg-slate-100 border border-border px-1.5 py-0.5 rounded">{ticker}</span>
+          Ticker: <span className="font-mono font-black text-foreground bg-neutral-100 border border-foreground px-1.5 py-0.5">{ticker}</span>
         </p>
       </div>
 
@@ -220,13 +220,12 @@ export default function ResearchLoadingExperience({
       <div className={`relative w-80 h-80 flex items-center justify-center z-10 ${isExiting ? "exit-contract" : ""}`}>
         
         {/* Orbit Tracks */}
-        <div className="absolute w-64 h-64 border border-slate-200/50 rounded-full pointer-events-none" />
-        <div className="absolute w-44 h-44 border border-dashed border-slate-200/50 rounded-full pointer-events-none" />
+        <div className="absolute w-64 h-64 border border-neutral-300 rounded-full pointer-events-none" />
+        <div className="absolute w-44 h-44 border border-dashed border-neutral-300 rounded-full pointer-events-none" />
 
         {/* Orbiting nodes wrapper */}
         <div className="absolute inset-0 orbit-wrapper">
           {nodes.map((node) => {
-            // Position nodes at equal angular steps around the circular track (radius = 120px)
             const rad = (node.angle * Math.PI) / 180;
             const x = Math.round(Math.cos(rad) * 120);
             const y = Math.round(Math.sin(rad) * 120);
@@ -244,11 +243,11 @@ export default function ResearchLoadingExperience({
               >
                 {/* Orbit node with hover interaction */}
                 <div className="orbit-node-wrapper w-full h-full">
-                  <div className="relative group w-full h-full rounded-xl bg-white border border-border hover:border-amber-500 shadow-2xs hover:shadow-xs flex items-center justify-center text-foreground-secondary hover:text-amber-600 transition-all cursor-pointer">
+                  <div className="relative group w-full h-full bg-white border border-foreground hover:bg-neutral-50 shadow-[2px_2px_0px_0px_#111111] flex items-center justify-center text-foreground transition-all cursor-pointer">
                     {node.icon}
                     
                     {/* Tooltip on Hover */}
-                    <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 scale-0 group-hover:scale-100 bg-slate-900 text-white text-8xs font-bold px-2 py-0.5 rounded transition-transform pointer-events-none whitespace-nowrap z-20 shadow-xs border border-slate-800">
+                    <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 scale-0 group-hover:scale-100 bg-foreground text-white text-8xs font-bold px-2 py-0.5 border border-foreground transition-transform pointer-events-none whitespace-nowrap z-20 font-mono">
                       {node.label}
                     </span>
                   </div>
@@ -259,12 +258,12 @@ export default function ResearchLoadingExperience({
         </div>
 
         {/* Central Research Core */}
-        <div className="absolute z-10 w-28 h-28 rounded-full bg-white border-2 border-amber-500/30 flex items-center justify-center p-1.5 pulse-center shadow-md select-none">
-          <div className="w-full h-full rounded-full bg-slate-900 flex flex-col justify-center items-center text-center p-2 border border-slate-800">
-            <span className="font-mono text-sm font-black text-amber-500 tracking-tight truncate max-w-full">
+        <div className="absolute z-10 w-28 h-28 rounded-none border border-foreground flex items-center justify-center p-1.5 bg-white pulse-center shadow-[3px_3px_0px_0px_#111111] select-none">
+          <div className="w-full h-full bg-foreground flex flex-col justify-center items-center text-center p-2">
+            <span className="font-mono text-sm font-black text-white tracking-tight truncate max-w-full">
               {ticker}
             </span>
-            <span className="text-8xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+            <span className="text-8xs text-neutral-300 font-bold uppercase tracking-wider mt-0.5 font-mono">
               AUDIT CORE
             </span>
           </div>
@@ -274,15 +273,15 @@ export default function ResearchLoadingExperience({
         <div className="absolute bottom-2 flex items-end gap-1 pointer-events-none">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="flex flex-col items-center">
-              <div className="w-0.5 h-3 bg-amber-500/30" />
+              <div className="w-0.5 h-3 bg-neutral-300" />
               <div 
-                className="w-1.5 bg-amber-500/80 rounded-sm"
+                className="w-1.5 bg-foreground"
                 style={{
                   animation: `signal-grow ${1 + i * 0.3}s ease-in-out infinite`,
                   height: "16px"
                 }}
               />
-              <div className="w-0.5 h-2 bg-amber-500/30" />
+              <div className="w-0.5 h-2 bg-neutral-300" />
             </div>
           ))}
         </div>
@@ -296,8 +295,8 @@ export default function ResearchLoadingExperience({
       </div>
 
       {/* Footer Transparency & Fact notes */}
-      <div className="text-center pt-2 space-y-1.5 border-t border-border w-full max-w-xs z-10">
-        <p className="text-6xs text-foreground-muted uppercase tracking-wider font-semibold">
+      <div className="text-center pt-4 border-t border-foreground w-full max-w-xs z-10">
+        <p className="text-6xs text-foreground-muted uppercase tracking-wider font-bold font-mono">
           Factual Sourcing Notice
         </p>
         <p className="text-7xs text-foreground-muted leading-relaxed">

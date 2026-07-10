@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #e0e3ea;
-  --foreground: #172033;
-  --foreground-secondary: #5F6B7A;
-  --foreground-muted: #8A94A3;
-  --border: #E5E7EB;
-  --surface: #FFFFFF;
-  --surface-hover: #F9FAFB;
-  --primary: #1E293B;
-  --primary-hover: #0F172A;
+  --background: #fcfcfc;
+  --foreground: #111111;
+  --foreground-secondary: #4a4a4a;
+  --foreground-muted: #737373;
+  --border: #111111;
+  --border-light: #e5e5e5;
+  --surface: #ffffff;
+  --surface-hover: #f5f5f5;
+  --primary: #111111;
+  --primary-hover: #262626;
 }
 
 @theme inline {
@@ -18,6 +19,7 @@
   --color-foreground-secondary: var(--foreground-secondary);
   --color-foreground-muted: var(--foreground-muted);
   --color-border: var(--border);
+  --color-border-light: var(--border-light);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-primary: var(--primary);
@@ -49,6 +51,59 @@ html {
 
 /* Focus visible ring reset */
 :focus-visible {
-  outline: 2px solid #F97316;
+  outline: 2px solid #111111;
   outline-offset: 2px;
+}
+
+/* Double-border / Architectural offset shadow */
+.architectural-card {
+  border: 1px solid var(--foreground);
+  box-shadow: 3px 3px 0px 0px var(--foreground);
+  border-radius: 0px;
+}
+
+.architectural-card-small {
+  border: 1px solid var(--foreground);
+  box-shadow: 2px 2px 0px 0px var(--foreground);
+  border-radius: 0px;
+}
+
+/* Newspaper / Editorial styles */
+.newspaper-title {
+  font-family: var(--font-sans), serif;
+  letter-spacing: -0.02em;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+  
+  header, footer, nav, button, select, input, .no-print, [role="tablist"], .bg-slate-900.px-6.py-16 {
+    display: none !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .architectural-card, .architectural-card-small {
+    box-shadow: none !important;
+    border: 1px solid #000000 !important;
+    page-break-inside: avoid;
+    margin-bottom: 20px !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
 }
