@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runDiagnosticsPipeline } from "@/src/lib/research/fetchAllProviders";
-import { buildEvidenceBundle } from "@/src/lib/research/buildEvidenceBundle";
-import { buildSnapshot } from "@/src/lib/research/snapshotEngine";
-import { runCompanyAnalysis } from "@/src/lib/research/llmAnalysis";
-import { runAllProviderHealthChecks } from "@/src/lib/providers/healthCheck";
+import { researchGraph } from "@/src/lib/research/researchGraph";
 import { CURATED_COMPANIES } from "@/src/data/curatedCompanies";
 import { logger } from "@/src/lib/logger";
 
@@ -13,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     let company = body.company;
-    const simulate = body.simulate; // { gemini?: string, groq?: string }
+    const simulate = body.simulate; // { groq?: string }
 
     if (!company && body.ticker) {
       const tickerLower = body.ticker.toLowerCase();
@@ -66,33 +62,32 @@ export async function POST(req: NextRequest) {
       isin: company.isin ? String(company.isin) : null,
     };
 
-    // 1. Run multi-provider diagnostics pipeline
-    const diagnostics = await runDiagnosticsPipeline(companyIdentity);
+    // Invoke the LangGraph workflow
+    const resultState = await researchGraph.invoke({
+      ticker: companyIdentity.displayTicker,
+      companyIdentity,
+      simulate,
+    });
 
-    // 2. Fetch or load cached provider health status mapping
-    const health = await runAllProviderHealthChecks(false);
+    if (resultState.status === "unavailable" && !resultState.diagnostics) {
+      return NextResponse.json(
+        { error: "Research pipeline was unavailable: " + resultState.errors.join("; ") },
+        { status: 500 }
+      );
+    }
 
-    // 3. Build structured evidence bundle
-    const evidenceBundle = buildEvidenceBundle(companyIdentity, diagnostics.allEndpoints, health.statusMap);
-
-    // 4. Compile CompanyMarketSnapshot resolving conflicts
-    const snapshot = buildSnapshot(evidenceBundle);
-
-    // 5. Run LLM Analysis fallback chain (Groq only)
-    const analysisRunResult = await runCompanyAnalysis(evidenceBundle, snapshot, snapshot.categoryAssessments, simulate);
-
-    // Combine everything into a single diagnostic response contract
+    // Combine everything into the single diagnostic response contract expected by the frontend
     const responsePayload = {
-      ...diagnostics,
-      evidenceBundle,
-      snapshot,
+      ...resultState.diagnostics,
+      evidenceBundle: resultState.evidenceBundle,
+      snapshot: resultState.snapshot,
       signals: null,
-      analysisRunResult,
+      analysisRunResult: resultState.analysisRunResult,
     };
 
     return NextResponse.json(responsePayload);
   } catch (error: any) {
-    logger.error("Fetch API Route: Failed to execute diagnostics", { error: error.message });
+    logger.error("Fetch API Route: Failed to execute diagnostics via LangGraph", { error: error.message });
     return NextResponse.json({ error: "Failed to run diagnostics: " + error.message }, { status: 500 });
   }
 }

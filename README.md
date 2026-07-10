@@ -6,24 +6,27 @@ An evidence-first company research platform that collects available market and f
 
 ---
 
-## Overview
+### Overview
 
-Ledger Nine is a developer-friendly investment research system that replaces open-ended or hallucination-prone AI pipelines with a strict, evidence-only evaluation system.
+Ledger Nine is a developer-friendly investment research system that replaces open-ended or hallucination-prone AI pipelines with a strict, evidence-only evaluation system orchestrated by **LangGraph.js** and **LangChain.js**.
 
-### Core Workflow
-1. **Search**: The user performs a dynamic lookup for a company by name or ticker symbol.
-2. **Resolve**: The application matches the request against a curated catalog and active providers to resolve the correct symbol.
-3. **Collect & Normalize**: Real-time market, news, and financial statements are fetched from active data providers and normalized to eliminate schema discrepancies.
-4. **Evaluate**: The system compiles a structured evidence bundle containing details such as price history, cash flows, and news sentiment.
-5. **Interpret**: Groq (running Llama-3.3-70b-versatile) evaluates the normalized evidence package. It is strictly constrained to the provided data and is forbidden from inventing details.
-6. **Verdict**: The system outputs a binary **INVEST** or **PASS** verdict visible immediately at the top of the viewport, with a clear evidence summary, graphs, and audit logs.
+### Core Workflow (LangGraph Orchestration)
+The entire research lifecycle is executed as a deterministic directed acyclic graph (DAG) using LangGraph:
+1. **resolveCompany**: Resolves the input query/ticker to a `CompanyIdentity` matching our curated catalog or default configuration.
+2. **collectEvidence**: Queries all active data providers (Finnhub, Twelve Data, SEC EDGAR, FMP, Alpha Vantage, NewsAPI, Yahoo Finance) in parallel to retrieve real-time market data, statements, and news.
+3. **normalizeEvidence**: Reconciles raw results into a unified, provider-agnostic `EvidenceBundle`.
+4. **assessCategories**: Compiles a normalized `CompanyMarketSnapshot` and pre-evaluates key category metrics (price history, financial capacity, cash flow, news sentiment, market value).
+5. **checkCompleteness**: Deterministically calculates a data completeness score (0-100) across required categories.
+6. **interpretEvidence**: Invokes **LangChain.js** with **ChatGroq** (using Llama-3.3-70b-versatile) to qualitatively analyze the normalized evidence bundle under strict constraints.
+7. **validateVerdict**: Ensures the LLM-derived verdict strictly adheres to the binary **INVEST** or **PASS** verdict schema.
+8. **finalizeReport**: Generates the final unified response contract for frontend consumption.
 
 ### User Experience
 * **Home Page**: Features a debounced dynamic company search resolving US and Indian equities, visual provider health-check statuses, and educational cards detailing the evidence-only framework.
-* **Research Page**: Prioritizes an immediate, prominent **INVEST** or **PASS** verdict alongside a concise explanation. Users can navigate tabs for interactive price charts (2–3 year history), balance sheet metrics, operating cash flow, recent market news, and a full evidence audit sheet.
+* **Research Page**: Prioritizes an immediate, prominent **INVEST** or **PASS** verdict visible on the first viewport screen. Users can navigate tabs for interactive price charts (2–3 year history), balance sheet metrics, operating cash flow, recent market news, and a full evidence audit sheet.
 * **Animated Loading Experience**: During API data collection, instead of a fake progress bar, an interactive loading screen displays orbiting evidence nodes, candlestick signals, and atmospheric messages detailing active registry lookups.
 
----
+-----
 
 ## How to Run
 
@@ -90,29 +93,45 @@ npm run start
 
 ## How It Works
 
-### Research Flow
+### Deterministic Research Graph (LangGraph)
+The runtime execution is managed by a compiled state machine (`src/lib/research/researchGraph.ts`) with structured, typed state properties. The graph defines clear execution nodes and conditional routing based on execution status.
 
 ```mermaid
 flowchart TD
-    A[Dynamic Search Request] --> B[Company / Symbol Resolution]
-    B --> C[Diagnostics Pipeline Run]
+    START([START]) --> Resolve[resolveCompany]
     
-    C --> D[Twelve Data Quote/Chart]
-    C --> E[Yahoo Finance Quote/Chart]
-    C --> F[Alpha Vantage Quote/Chart]
-    C --> G[SEC EDGAR US Filings]
-    C --> H[FMP Statements & Metrics]
-    C --> I[Finnhub News & Financials]
-    C --> J[NewsAPI Market Articles]
+    Resolve -->|Unavailable| Finalize[finalizeReport]
+    Resolve -->|Success| Collect[collectEvidence]
     
-    D & E & F & G & H & I & J --> K[Normalize Provider Results]
-    K --> L[Structured Evidence Bundle Creation]
-    L --> M[Compile Company Snapshot & Resolve Conflicts]
-    M --> N[Constrained Groq AI Qualitative Interpretation]
-    N --> O{Final Verdict}
-    O -->|Sufficient Evidence & Support| P[INVEST]
-    O -->|Weak, Missing, or Negative| Q[PASS]
+    Collect -->|Unavailable| Finalize
+    Collect -->|Success| Normalize[normalizeEvidence]
+    
+    Normalize -->|Unavailable| Finalize
+    Normalize -->|Success| Assess[assessCategories]
+    
+    Assess -->|Unavailable| Finalize
+    Assess -->|Success| Completeness[checkCompleteness]
+    
+    Completeness --> Interpret[interpretEvidence]
+    
+    Interpret -->|Unavailable| Finalize
+    Interpret -->|Success| Validate[validateVerdict]
+    
+    Validate --> Finalize
+    
+    Finalize --> END([END])
 ```
+
+### LangGraph Nodes
+* **resolveCompany**: Matches symbol query against the database of curated companies and validates structure.
+* **collectEvidence**: Queries active providers in parallel (Finnhub, Twelve Data, SEC EDGAR, FMP, Alpha Vantage, NewsAPI, Yahoo Finance) to gather financial and price records. Bypasses optional errors gracefully.
+* **normalizeEvidence**: Processes raw endpoint data into a standard `EvidenceBundle` containing nested values and provenance logs.
+* **assessCategories**: Evaluates technical and fundamental conditions (e.g. low-debt checks, cash flow coverage, price history length).
+* **checkCompleteness**: Calculates a transparent completeness percentage.
+* **interpretEvidence**: Feeds the normalized payload to **LangChain.js** via the **ChatGroq** integration. ChatGroq invokes `llama-3.3-70b-versatile` under a structured Zod schema constraint.
+* **validateVerdict**: Ensures verdict output is strictly binary: `INVEST` or `PASS`.
+* **finalizeReport**: Compiles results, errors, and diagnostics into a unified response model.
+
 
 ### Evidence Used
 The platform bases its decisions strictly on the following categories:
@@ -210,6 +229,7 @@ src/
 │   │   ├── compactPayload.ts
 │   │   ├── fetchAllProviders.ts
 │   │   ├── llmAnalysis.ts
+│   │   ├── researchGraph.ts
 │   │   └── snapshotEngine.ts
 │   ├── errors-sanitizer.ts
 │   ├── errors.ts
@@ -278,8 +298,6 @@ This project was built with iterative AI assistance. Prompts and tools helped gu
 * Implementation of the strict binary verdict model (`INVEST`/`PASS`).
 * CSS refinement to comply with the warm-colored styling rule (no blue accents).
 
-### LLM Chat Transcripts
-*Complete raw LLM chat transcripts are not currently stored in the repository.*
 
 ---
 
