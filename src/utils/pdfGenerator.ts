@@ -221,7 +221,7 @@ export function generateInvestmentReport(data: PDFData) {
 
   doc.setFont("Helvetica", "bold");
   doc.setFontSize(18);
-  doc.setTextColor(verdict === "INVEST" ? 16 : 185, verdict === "INVEST" ? 122 : 28, verdict === "INVEST" ? 80 : 28);
+  doc.setTextColor(verdict === "INVEST" ? 21 : 185, verdict === "INVEST" ? 128 : 28, verdict === "INVEST" ? 61 : 28);
   doc.text(verdict, 25, 51);
 
   doc.setFont("Helvetica", "bold");
@@ -266,6 +266,14 @@ export function generateInvestmentReport(data: PDFData) {
     
     // status
     doc.setFont("Helvetica", "bold");
+    const lowerStatus = pStatus.toLowerCase();
+    if (["sufficient", "strong", "positive", "available", "success"].includes(lowerStatus)) {
+      doc.setTextColor(21, 128, 61); // accent-green
+    } else if (["moderate", "mixed", "neutral", "partial"].includes(lowerStatus)) {
+      doc.setTextColor(180, 115, 0); // accent-yellow
+    } else {
+      doc.setTextColor(185, 28, 28); // accent-red
+    }
     doc.text(`[${pStatus}]`, 70, pillarY);
     
     // reason
@@ -421,7 +429,15 @@ export function generateInvestmentReport(data: PDFData) {
     const pointsCount = prices.length;
     const stepX = 180 / (pointsCount - 1 || 1);
 
-    doc.setDrawColor(17, 17, 17);
+    const isPos = periodReturn > 1;
+    const isNeg = periodReturn < -1;
+    if (isPos) {
+      doc.setDrawColor(21, 128, 61);
+    } else if (isNeg) {
+      doc.setDrawColor(185, 28, 28);
+    } else {
+      doc.setDrawColor(17, 17, 17);
+    }
     doc.setLineWidth(1.2);
     
     let lastX = 15;

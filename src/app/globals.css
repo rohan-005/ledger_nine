@@ -11,6 +11,14 @@
   --surface-hover: #f5f5f5;
   --primary: #111111;
   --primary-hover: #262626;
+
+  /* Accent Colors */
+  --accent-green: #15803d;
+  --accent-green-hover: #166534;
+  --accent-yellow: #facc15;
+  --accent-yellow-hover: #eab308;
+  --accent-red: #b91c1c;
+  --accent-red-hover: #991b1b;
 }
 
 @theme inline {
@@ -24,6 +32,13 @@
   --color-surface-hover: var(--surface-hover);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
+  
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-hover: var(--accent-green-hover);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-yellow-hover: var(--accent-yellow-hover);
+  --color-accent-red: var(--accent-red);
+  --color-accent-red-hover: var(--accent-red-hover);
   
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

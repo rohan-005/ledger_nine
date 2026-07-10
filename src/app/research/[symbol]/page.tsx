@@ -174,9 +174,9 @@ export default function ResearchPage(props: PageProps) {
   const getVerdictStyle = (v: string) => {
     switch (v) {
       case "INVEST":
-        return "bg-emerald-700 text-white border-emerald-900 shadow-[2px_2px_0px_0px_#111111]";
+        return "bg-accent-green text-white border-accent-green/80 shadow-[2px_2px_0px_0px_var(--accent-green)]";
       case "PASS":
-        return "bg-rose-700 text-white border-rose-900 shadow-[2px_2px_0px_0px_#111111]";
+        return "bg-accent-red text-white border-accent-red/80 shadow-[2px_2px_0px_0px_var(--accent-red)]";
       default:
         return "bg-neutral-800 text-white border-neutral-950";
     }
@@ -201,6 +201,19 @@ export default function ResearchPage(props: PageProps) {
     }
 
     return { ceo, founded };
+  };
+
+  const getArticleSentiment = (article: any) => {
+    const text = `${article.title || ""} ${article.summary || ""}`.toLowerCase();
+    const positiveWords = ["growth", "profit", "record", "gain", "upgrade", "buy", "bullish", "success", "beat", "higher", "positive", "strong"];
+    const negativeWords = ["drop", "loss", "decline", "fall", "downgrade", "sell", "bearish", "lawsuit", "warn", "debt", "lower", "weak", "concern", "dispute", "investigation", "probe", "fine", "penalty"];
+    let posCount = 0;
+    let negCount = 0;
+    positiveWords.forEach(w => { if (text.includes(w)) posCount++; });
+    negativeWords.forEach(w => { if (text.includes(w)) negCount++; });
+    if (negCount > posCount) return "risk";
+    if (posCount > negCount) return "positive";
+    return "neutral";
   };
 
   const handleCitationClick = (id: string) => {
@@ -289,7 +302,13 @@ export default function ResearchPage(props: PageProps) {
       {/* Top Overview & Final Verdict Section (First Viewport) */}
       <div className="border-b-2 border-foreground bg-neutral-50 py-8">
         <div className="max-w-7xl w-full mx-auto px-6">
-          <div className="bg-white border-2 border-foreground p-6 shadow-[4px_4px_0px_0px_#111111] space-y-6">
+          <div className={`bg-white border-2 p-6 shadow-[4px_4px_0px_0px_#111111] space-y-6 ${
+            verdictStr === "INVEST"
+              ? "border-accent-green/60"
+              : verdictStr === "PASS"
+              ? "border-accent-red/60"
+              : "border-foreground"
+          }`}>
             
             {/* Desktop Layout (Two Column) */}
             <div className="hidden md:grid grid-cols-12 gap-8 items-stretch">
@@ -496,13 +515,16 @@ export default function ResearchPage(props: PageProps) {
           <div className="flex gap-2">
             <button
               onClick={() => generateInvestmentReport(pipelineResult)}
-              className="px-3 py-1.5 border border-foreground bg-white text-2xs font-bold text-foreground hover:bg-neutral-50 shadow-[2px_2px_0px_0px_#111111] transition-all cursor-pointer font-mono shrink-0"
+              className="px-3 py-1.5 border border-foreground bg-accent-yellow hover:bg-accent-yellow-hover text-2xs font-bold text-foreground hover:-translate-y-0.5 active:translate-y-0 shadow-[2px_2px_0px_0px_#111111] transition-all cursor-pointer font-mono shrink-0 flex items-center gap-1.5"
             >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
               DOWNLOAD PDF
             </button>
             <button
               onClick={runResearch}
-              className="px-3 py-1.5 border border-foreground bg-white text-2xs font-bold text-foreground hover:bg-neutral-50 shadow-[2px_2px_0px_0px_#111111] transition-all cursor-pointer font-mono shrink-0"
+              className="px-3 py-1.5 border border-foreground bg-white text-2xs font-bold text-foreground hover:bg-neutral-50 hover:-translate-y-0.5 active:translate-y-0 shadow-[2px_2px_0px_0px_#111111] transition-all cursor-pointer font-mono shrink-0"
             >
               RE-RUN DIAGNOSTIC
             </button>
@@ -528,23 +550,23 @@ export default function ResearchPage(props: PageProps) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-3">
                   <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Company Name</span>
                   <span className="text-xs font-bold text-foreground block mt-1">{snapshot.company.name}</span>
                 </div>
-                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-3">
                   <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Exchange / Country</span>
                   <span className="text-xs font-bold text-foreground block mt-1">
                     {snapshot.company.exchange || "N/A"} ({snapshot.company.country || "N/A"})
                   </span>
                 </div>
-                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-3">
                   <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Sector / Industry</span>
                   <span className="text-xs font-bold text-foreground block mt-1 truncate">
                     {snapshot.company.sector || "N/A"} / {snapshot.company.industry || "N/A"}
                   </span>
                 </div>
-                <div className="bg-neutral-50 border border-neutral-200 p-3">
+                <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-3">
                   <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Reporting Currency</span>
                   <span className="text-xs font-mono font-bold text-foreground block mt-1">
                     {snapshot.company.currency || "USD"}
@@ -553,7 +575,7 @@ export default function ResearchPage(props: PageProps) {
               </div>
 
               {snapshot.company.description && (
-                <div className="bg-neutral-50 border border-neutral-200 p-4">
+                <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-4">
                   <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono mb-1">Company Description</span>
                   <p className="text-xs text-foreground-secondary leading-relaxed font-medium">
                     {snapshot.company.description}
@@ -582,8 +604,8 @@ export default function ResearchPage(props: PageProps) {
                   {snapshot.market.changePercent !== null && (
                     <span className={`text-2xs font-black font-mono px-2 py-0.5 border ${
                       snapshot.market.changePercent >= 0 
-                        ? "bg-neutral-100 text-neutral-900 border-neutral-900" 
-                        : "bg-neutral-900 text-white border-neutral-950"
+                        ? "bg-accent-green text-white border-accent-green" 
+                        : "bg-accent-red text-white border-accent-red"
                     }`}>
                       {snapshot.market.changePercent >= 0 ? "+" : ""}
                       {snapshot.market.changePercent.toFixed(2)}%
@@ -592,37 +614,37 @@ export default function ResearchPage(props: PageProps) {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 flex-1 w-full">
-                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                  <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-2.5 text-center">
                     <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Prev Close</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatCurrency(snapshot.market.previousClose, currency)}
                     </span>
                   </div>
-                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                  <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-2.5 text-center">
                     <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Session High</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatCurrency(snapshot.market.high, currency)}
                     </span>
                   </div>
-                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                  <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-2.5 text-center">
                     <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Session Low</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatCurrency(snapshot.market.low, currency)}
                     </span>
                   </div>
-                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                  <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-2.5 text-center">
                     <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Volume</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {formatLargeNumber(snapshot.market.volume)}
                     </span>
                   </div>
-                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                  <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-2.5 text-center">
                     <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">P/E Ratio</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {snapshot.market.pe !== null ? snapshot.market.pe.toFixed(2) : "N/A"}
                     </span>
                   </div>
-                  <div className="bg-neutral-50 border border-neutral-200 p-2.5 text-center">
+                  <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-2.5 text-center">
                     <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">P/B Ratio</span>
                     <span className="text-xs font-bold text-foreground font-mono mt-0.5 block">
                       {snapshot.market.pb !== null ? snapshot.market.pb.toFixed(2) : "N/A"}
@@ -691,7 +713,10 @@ export default function ResearchPage(props: PageProps) {
                   const maxPrice = Math.max(...points.map(p => p.price));
                   const totalReturn = ((endPrice - startPrice) / startPrice) * 100;
 
-                  const strokeColor = "#111111";
+                  const isPositiveTrend = totalReturn > 1;
+                  const isNegativeTrend = totalReturn < -1;
+                  const strokeColor = isPositiveTrend ? "var(--accent-green)" : isNegativeTrend ? "var(--accent-red)" : "#111111";
+                  const gradientColor = isPositiveTrend ? "var(--accent-green)" : isNegativeTrend ? "var(--accent-red)" : "#111111";
 
                   // SVG calculation
                   const priceRange = maxPrice - minPrice || 1;
@@ -716,21 +741,21 @@ export default function ResearchPage(props: PageProps) {
                   return (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                        <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-3">
                           <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Start Price ({points[0].date})</span>
                           <span className="text-sm font-bold text-foreground font-mono">{formatCurrency(startPrice, currency)}</span>
                         </div>
-                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                        <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-3">
                           <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">End Price ({points[points.length - 1].date})</span>
                           <span className="text-sm font-bold text-foreground font-mono">{formatCurrency(endPrice, currency)}</span>
                         </div>
-                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                        <div className="bg-neutral-50 border border-neutral-200 border-t-4 p-3" style={{ borderTopColor: strokeColor }}>
                           <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">Period Return</span>
-                          <span className={`text-sm font-black font-mono ${totalReturn >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
+                          <span className="text-sm font-black font-mono" style={{ color: strokeColor }}>
                             {totalReturn >= 0 ? "+" : ""}{totalReturn.toFixed(2)}%
                           </span>
                         </div>
-                        <div className="bg-neutral-50 border border-neutral-200 p-3">
+                        <div className="bg-neutral-50 border border-neutral-200 border-t-4 border-t-accent-yellow p-3">
                           <span className="text-8xs text-foreground-muted uppercase tracking-widest block font-bold font-mono">High / Low Peaks</span>
                           <span className="text-xs font-bold text-foreground font-mono">
                             {formatCurrency(minPrice, currency)} - {formatCurrency(maxPrice, currency)}
@@ -742,9 +767,9 @@ export default function ResearchPage(props: PageProps) {
                       <div className="relative border border-foreground bg-white p-4 overflow-hidden shadow-[2px_2px_0px_0px_#111111]">
                         <svg viewBox="0 0 1000 240" className="w-full h-56 overflow-visible" preserveAspectRatio="none">
                           <defs>
-                            <linearGradient id="monoGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#111111" stopOpacity="0.08"/>
-                              <stop offset="100%" stopColor="#111111" stopOpacity="0.0"/>
+                            <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={gradientColor} stopOpacity="0.08"/>
+                              <stop offset="100%" stopColor={gradientColor} stopOpacity="0.0"/>
                             </linearGradient>
                           </defs>
                           
@@ -754,7 +779,7 @@ export default function ResearchPage(props: PageProps) {
                           <line x1="0" y1="180" x2="1000" y2="180" stroke="#e5e5e5" strokeDasharray="2 2" strokeWidth="1" />
 
                           {/* Fill */}
-                          <path d={areaPath} fill="url(#monoGradient)" />
+                          <path d={areaPath} fill="url(#trendGradient)" />
 
                           {/* Path line */}
                           <path d={chartPath} fill="none" stroke={strokeColor} strokeWidth="3" strokeLinecap="square" strokeLinejoin="miter" />
@@ -798,41 +823,79 @@ export default function ResearchPage(props: PageProps) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="overflow-x-auto border border-foreground">
-                    <table className="w-full text-left border-collapse text-2xs">
-                      <thead>
-                        <tr className="bg-neutral-100 border-b border-foreground text-foreground font-bold font-mono uppercase">
-                          <th className="p-3">Year</th>
-                          <th className="p-3">Revenue</th>
-                          <th className="p-3">Net Income</th>
-                          <th className="p-3">Total Assets</th>
-                          <th className="p-3">Total Liabilities</th>
-                          <th className="p-3">Shareholder Equity</th>
-                          <th className="p-3">Debt-to-Equity</th>
-                          <th className="p-3">ROE</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-200">
-                        {snapshot.financials.map((f: any) => {
-                          const equity = (f.totalAssets !== null && f.totalLiabilities !== null) ? (f.totalAssets - f.totalLiabilities) : null;
-                          return (
-                            <tr key={f.year} className="hover:bg-neutral-50 text-foreground-secondary font-mono">
-                              <td className="p-3 font-sans font-bold text-foreground">{f.year}</td>
-                              <td className="p-3">{formatLargeNumber(f.revenue, true, currency)}</td>
-                              <td className={`p-3 font-bold ${f.netIncome >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
-                                {formatLargeNumber(f.netIncome, true, currency)}
-                              </td>
-                              <td className="p-3">{formatLargeNumber(f.totalAssets, true, currency)}</td>
-                              <td className="p-3">{formatLargeNumber(f.totalLiabilities, true, currency)}</td>
-                              <td className="p-3 font-semibold">{formatLargeNumber(equity, true, currency)}</td>
-                              <td className="p-3">{f.debtToEquity !== null ? f.debtToEquity.toFixed(2) : "N/A"}</td>
-                              <td className="p-3">{f.roe !== null ? `${(f.roe * 100).toFixed(2)}%` : "N/A"}</td>
+                  {(() => {
+                    const maxNetIncome = Math.max(...snapshot.financials.map((x: any) => Math.abs(x.netIncome || 0))) || 1;
+                    const maxRevenue = Math.max(...snapshot.financials.map((x: any) => Math.abs(x.revenue || 0))) || 1;
+                    return (
+                      <div className="overflow-x-auto border border-foreground">
+                        <table className="w-full text-left border-collapse text-2xs">
+                          <thead>
+                            <tr className="bg-neutral-100 border-b border-foreground text-foreground font-bold font-mono uppercase">
+                              <th className="p-3">Year</th>
+                              <th className="p-3">Revenue</th>
+                              <th className="p-3">Net Income</th>
+                              <th className="p-3">Total Assets</th>
+                              <th className="p-3">Total Liabilities</th>
+                              <th className="p-3">Shareholder Equity</th>
+                              <th className="p-3">Debt-to-Equity</th>
+                              <th className="p-3">ROE</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-200">
+                            {snapshot.financials.map((f: any) => {
+                              const equity = (f.totalAssets !== null && f.totalLiabilities !== null) ? (f.totalAssets - f.totalLiabilities) : null;
+                              const netRatio = Math.min(100, Math.round((Math.abs(f.netIncome || 0) / maxNetIncome) * 100));
+                              const netColor = f.netIncome > 0 ? "bg-accent-green" : f.netIncome === 0 ? "bg-accent-yellow" : "bg-accent-red";
+                              const netTextColor = f.netIncome > 0 ? "text-accent-green" : f.netIncome === 0 ? "text-accent-yellow" : "text-accent-red";
+
+                              const revRatio = Math.min(100, Math.round((Math.abs(f.revenue || 0) / maxRevenue) * 100));
+                              const revColor = f.revenue > 0 ? "bg-accent-green" : "bg-accent-red";
+
+                              return (
+                                <tr key={f.year} className="hover:bg-neutral-50 text-foreground-secondary font-mono">
+                                  <td className="p-3 font-sans font-bold text-foreground">{f.year}</td>
+                                  <td className="p-3">
+                                    <div className="space-y-1">
+                                      <span>{formatLargeNumber(f.revenue, true, currency)}</span>
+                                      <div className="w-16 h-1 bg-neutral-100 border border-neutral-300">
+                                        <div className={`h-full ${revColor}`} style={{ width: `${revRatio}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 font-bold">
+                                    <div className="space-y-1">
+                                      <span className={netTextColor}>{formatLargeNumber(f.netIncome, true, currency)}</span>
+                                      <div className="w-16 h-1 bg-neutral-100 border border-neutral-300">
+                                        <div className={`h-full ${netColor}`} style={{ width: `${netRatio}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3">{formatLargeNumber(f.totalAssets, true, currency)}</td>
+                                  <td className="p-3">{formatLargeNumber(f.totalLiabilities, true, currency)}</td>
+                                  <td className="p-3 font-semibold">{formatLargeNumber(equity, true, currency)}</td>
+                                  <td className="p-3">
+                                    <span className={f.debtToEquity !== null && f.debtToEquity > 2 ? "text-accent-red font-bold" : "text-foreground"}>
+                                      {f.debtToEquity !== null ? f.debtToEquity.toFixed(2) : "N/A"}
+                                    </span>
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="space-y-1">
+                                      <span className={`font-bold ${f.roe > 0.15 ? "text-accent-green" : f.roe >= 0 ? "text-accent-yellow" : "text-accent-red"}`}>
+                                        {f.roe !== null ? `${(f.roe * 100).toFixed(2)}%` : "N/A"}
+                                      </span>
+                                      <div className="w-16 h-1 bg-neutral-100 border border-neutral-300">
+                                        <div className={`h-full ${f.roe > 0.15 ? "bg-accent-green" : f.roe >= 0 ? "bg-accent-yellow" : "bg-accent-red"}`} style={{ width: `${f.roe !== null ? Math.min(100, Math.round(Math.abs(f.roe) * 100)) : 0}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                   <p className="text-6xs text-foreground-secondary italic leading-normal">
                     * {snapshot.categoryAssessments.financialCapacity.reason}
                   </p>
@@ -858,35 +921,88 @@ export default function ResearchPage(props: PageProps) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="overflow-x-auto border border-foreground">
-                    <table className="w-full text-left border-collapse text-2xs">
-                      <thead>
-                        <tr className="bg-neutral-100 border-b border-foreground text-foreground font-bold font-mono uppercase">
-                          <th className="p-3">Year</th>
-                          <th className="p-3">Operating Cash Flow</th>
-                          <th className="p-3">Capex (Calculated)</th>
-                          <th className="p-3">Free Cash Flow</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-200">
-                        {snapshot.financials.map((f: any) => {
-                          const capex = (f.operatingCashFlow !== null && f.freeCashFlow !== null) ? (f.operatingCashFlow - f.freeCashFlow) : null;
-                          return (
-                            <tr key={f.year} className="hover:bg-neutral-50 text-foreground-secondary font-mono">
-                              <td className="p-3 font-sans font-bold text-foreground">{f.year}</td>
-                              <td className={`p-3 ${f.operatingCashFlow >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
-                                {formatLargeNumber(f.operatingCashFlow, true, currency)}
-                              </td>
-                              <td className="p-3">{formatLargeNumber(capex, true, currency)}</td>
-                              <td className={`p-3 font-bold ${f.freeCashFlow >= 0 ? "text-neutral-900" : "text-neutral-700"}`}>
-                                {formatLargeNumber(f.freeCashFlow, true, currency)}
-                              </td>
+                  {(() => {
+                    const maxCash = Math.max(...snapshot.financials.flatMap((x: any) => {
+                      const capex = (x.operatingCashFlow !== null && x.freeCashFlow !== null) ? (x.operatingCashFlow - x.freeCashFlow) : 0;
+                      const fin = x.freeCashFlow !== null && x.operatingCashFlow !== null ? (x.freeCashFlow - x.operatingCashFlow) : 0;
+                      return [
+                        Math.abs(x.operatingCashFlow || 0),
+                        Math.abs(capex),
+                        Math.abs(fin)
+                      ];
+                    })) || 1;
+
+                    return (
+                      <div className="overflow-x-auto border border-foreground">
+                        <table className="w-full text-left border-collapse text-2xs">
+                          <thead>
+                            <tr className="bg-neutral-100 border-b border-foreground text-foreground font-bold font-mono uppercase">
+                              <th className="p-3">Year</th>
+                              <th className="p-3">Operating Cash Flow</th>
+                              <th className="p-3">Investing Cash Flow (Capex)</th>
+                              <th className="p-3">Financing Cash Flow (Est)</th>
+                              <th className="p-3">Free Cash Flow</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-200">
+                            {snapshot.financials.map((f: any) => {
+                              const capex = (f.operatingCashFlow !== null && f.freeCashFlow !== null) ? (f.operatingCashFlow - f.freeCashFlow) : null;
+                              const investingCash = capex !== null ? -capex : null;
+                              const financingCash = (f.freeCashFlow !== null && f.operatingCashFlow !== null) ? (f.freeCashFlow - f.operatingCashFlow) : null;
+
+                              const ocfRatio = Math.min(100, Math.round((Math.abs(f.operatingCashFlow || 0) / maxCash) * 100));
+                              const ocfColor = f.operatingCashFlow >= 0 ? "bg-accent-green" : "bg-accent-red";
+
+                              const invRatio = Math.min(100, Math.round((Math.abs(investingCash || 0) / maxCash) * 100));
+                              const invColor = "bg-accent-yellow";
+
+                              const finRatio = Math.min(100, Math.round((Math.abs(financingCash || 0) / maxCash) * 100));
+                              const finColor = (financingCash || 0) < 0 ? "bg-accent-red" : "bg-accent-green";
+
+                              return (
+                                <tr key={f.year} className="hover:bg-neutral-50 text-foreground-secondary font-mono">
+                                  <td className="p-3 font-sans font-bold text-foreground">{f.year}</td>
+                                  <td className="p-3">
+                                    <div className="space-y-1">
+                                      <span className={f.operatingCashFlow >= 0 ? "text-accent-green font-bold" : "text-accent-red font-bold"}>
+                                        {formatLargeNumber(f.operatingCashFlow, true, currency)}
+                                      </span>
+                                      <div className="w-16 h-1 bg-neutral-100 border border-neutral-300">
+                                        <div className={`h-full ${ocfColor}`} style={{ width: `${ocfRatio}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="space-y-1">
+                                      <span>{formatLargeNumber(investingCash, true, currency)}</span>
+                                      <div className="w-16 h-1 bg-neutral-100 border border-neutral-300">
+                                        <div className={`h-full ${invColor}`} style={{ width: `${invRatio}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="space-y-1">
+                                      <span className={(financingCash || 0) >= 0 ? "text-accent-green font-bold" : "text-accent-red font-bold"}>
+                                        {formatLargeNumber(financingCash, true, currency)}
+                                      </span>
+                                      <div className="w-16 h-1 bg-neutral-100 border border-neutral-300">
+                                        <div className={`h-full ${finColor}`} style={{ width: `${finRatio}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 font-bold">
+                                    <span className={f.freeCashFlow >= 0 ? "text-accent-green" : "text-accent-red"}>
+                                      {formatLargeNumber(f.freeCashFlow, true, currency)}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                   <p className="text-6xs text-foreground-secondary italic leading-normal">
                     * {snapshot.categoryAssessments.cashFlow.reason}
                   </p>
@@ -915,38 +1031,53 @@ export default function ResearchPage(props: PageProps) {
             ) : (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {snapshot.news.slice(0, 6).map((item: any, idx: number) => (
-                    <div 
-                      key={idx} 
-                      className="border border-foreground p-4 bg-white shadow-[2px_2px_0px_0px_#111111] flex flex-col justify-between space-y-3"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between items-center text-8xs text-foreground-muted font-mono uppercase font-bold">
-                          <span>{item.source || "Unknown Source"}</span>
-                          <span>{item.date ? new Date(item.date).toLocaleDateString() : "Recent"}</span>
+                  {snapshot.news.slice(0, 6).map((item: any, idx: number) => {
+                    const sentiment = getArticleSentiment(item);
+                    let indicatorColor = "bg-accent-yellow";
+                    let indicatorLabel = "⚠ Neutral";
+                    if (sentiment === "positive") {
+                      indicatorColor = "bg-accent-green";
+                      indicatorLabel = "✓ Positive";
+                    } else if (sentiment === "risk") {
+                      indicatorColor = "bg-accent-red";
+                      indicatorLabel = "✕ Risk";
+                    }
+                    return (
+                      <div 
+                        key={idx} 
+                        className="border border-foreground p-4 bg-white hover:-translate-y-0.5 shadow-[2px_2px_0px_0px_#111111] transition-all flex flex-col justify-between space-y-3"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-8xs font-mono uppercase font-bold">
+                            <span className="text-foreground-muted">{item.source || "Unknown Source"}</span>
+                            <div className="flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${indicatorColor}`}></span>
+                              <span className="text-foreground-secondary text-9xs font-extrabold">{indicatorLabel}</span>
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-foreground leading-snug line-clamp-2 uppercase">{item.title}</h4>
+                          {item.summary && (
+                            <p className="text-2xs text-foreground-secondary leading-relaxed line-clamp-3 font-medium">
+                              {item.summary}
+                            </p>
+                          )}
                         </div>
-                        <h4 className="text-xs font-bold text-foreground leading-snug line-clamp-2 uppercase">{item.title}</h4>
-                        {item.summary && (
-                          <p className="text-2xs text-foreground-secondary leading-relaxed line-clamp-3 font-medium">
-                            {item.summary}
-                          </p>
+                        {item.url && (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-2xs font-bold text-foreground hover:underline underline self-start flex items-center gap-1 font-mono uppercase"
+                          >
+                            Read Article
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
                         )}
                       </div>
-                      {item.url && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-2xs font-bold text-foreground hover:underline underline self-start flex items-center gap-1 font-mono uppercase"
-                        >
-                          Read Article
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <p className="text-6xs text-foreground-secondary italic leading-normal">
                   * {snapshot.categoryAssessments.news.reason}
@@ -1021,28 +1152,177 @@ export default function ResearchPage(props: PageProps) {
                   </span>
                 </div>
 
+                {/* Evidence Coverage Donut Chart */}
+                <div className="bg-white border border-foreground p-6 shadow-[3px_3px_0px_0px_#111111] flex flex-col md:flex-row items-center gap-8">
+                  <div className="shrink-0 flex items-center justify-center">
+                    {(() => {
+                      let availableCount = 0;
+                      let partialCount = 0;
+                      let missingCount = 0;
+
+                      const assessCategoryStatus = (status: string) => {
+                        const s = status?.toLowerCase() || "";
+                        if (["sufficient", "strong", "positive", "available", "valued", "working", "success"].includes(s)) return "available";
+                        if (["moderate", "mixed", "neutral", "partial"].includes(s)) return "partial";
+                        return "missing";
+                      };
+
+                      [
+                        snapshot.categoryAssessments.priceHistory.status,
+                        snapshot.categoryAssessments.financialCapacity.status,
+                        snapshot.categoryAssessments.cashFlow.status,
+                        snapshot.categoryAssessments.news.status,
+                        snapshot.categoryAssessments.marketValue?.status || "available"
+                      ].forEach(status => {
+                        const evaluated = assessCategoryStatus(status);
+                        if (evaluated === "available") availableCount++;
+                        else if (evaluated === "partial") partialCount++;
+                        else missingCount++;
+                      });
+
+                      const totalCount = 5;
+                      const radius = 30;
+                      const circumference = 2 * Math.PI * radius;
+                      const availableStroke = (availableCount / totalCount) * circumference;
+                      const partialStroke = (partialCount / totalCount) * circumference;
+                      const missingStroke = (missingCount / totalCount) * circumference;
+
+                      const availableOffset = 0;
+                      const partialOffset = availableStroke;
+                      const missingOffset = availableStroke + partialStroke;
+
+                      return (
+                        <div className="relative w-36 h-36 flex items-center justify-center">
+                          <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 80 80">
+                            <circle cx="40" cy="40" r={radius} fill="transparent" stroke="#f3f4f6" strokeWidth="8" />
+                            {availableCount > 0 && (
+                              <circle
+                                cx="40"
+                                cy="40"
+                                r={radius}
+                                fill="transparent"
+                                stroke="var(--accent-green)"
+                                strokeWidth="8"
+                                strokeDasharray={`${availableStroke} ${circumference}`}
+                                strokeDashoffset={-availableOffset}
+                              />
+                            )}
+                            {partialCount > 0 && (
+                              <circle
+                                cx="40"
+                                cy="40"
+                                r={radius}
+                                fill="transparent"
+                                stroke="var(--accent-yellow)"
+                                strokeWidth="8"
+                                strokeDasharray={`${partialStroke} ${circumference}`}
+                                strokeDashoffset={-partialOffset}
+                              />
+                            )}
+                            {missingCount > 0 && (
+                              <circle
+                                cx="40"
+                                cy="40"
+                                r={radius}
+                                fill="transparent"
+                                stroke="var(--accent-red)"
+                                strokeWidth="8"
+                                strokeDasharray={`${missingStroke} ${circumference}`}
+                                strokeDashoffset={-missingOffset}
+                              />
+                            )}
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                            <span className="text-lg font-black text-foreground font-mono">{Math.round((availableCount / totalCount) * 100)}%</span>
+                            <span className="text-[7px] text-foreground-muted uppercase font-bold tracking-widest font-mono">Verified</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="flex-1 space-y-4">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-foreground uppercase tracking-tight">Evidence Coverage Audit</h4>
+                      <p className="text-2xs text-foreground-secondary leading-relaxed font-medium">
+                        This donut chart illustrates the percentage of required categories successfully resolved from the active providers.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-2xs font-mono font-bold">
+                      {(() => {
+                        let availableCount = 0;
+                        let partialCount = 0;
+                        let missingCount = 0;
+
+                        const assessCategoryStatus = (status: string) => {
+                          const s = status?.toLowerCase() || "";
+                          if (["sufficient", "strong", "positive", "available", "valued", "working", "success"].includes(s)) return "available";
+                          if (["moderate", "mixed", "neutral", "partial"].includes(s)) return "partial";
+                          return "missing";
+                        };
+
+                        [
+                          snapshot.categoryAssessments.priceHistory.status,
+                          snapshot.categoryAssessments.financialCapacity.status,
+                          snapshot.categoryAssessments.cashFlow.status,
+                          snapshot.categoryAssessments.news.status,
+                          snapshot.categoryAssessments.marketValue?.status || "available"
+                        ].forEach(status => {
+                          const evaluated = assessCategoryStatus(status);
+                          if (evaluated === "available") availableCount++;
+                          else if (evaluated === "partial") partialCount++;
+                          else missingCount++;
+                        });
+
+                        return (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 bg-accent-green border border-foreground"></span>
+                              <span>✓ Available ({availableCount}/5)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 bg-accent-yellow border border-foreground"></span>
+                              <span>⚠ Partial ({partialCount}/5)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 bg-accent-red border border-foreground"></span>
+                              <span>✕ Missing ({missingCount}/5)</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Strengths & Concerns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="border border-foreground p-4 bg-white space-y-2 shadow-[3px_3px_0px_0px_#111111]">
-                    <span className="font-extrabold text-xs text-foreground uppercase block tracking-wider flex items-center gap-1.5 font-mono">
-                      <span className="w-1.5 h-1.5 bg-foreground"></span>
-                      Key Strengths
+                  <div className="border border-foreground border-t-4 border-t-accent-green p-4 bg-white space-y-2 shadow-[3px_3px_0px_0px_#111111] hover:-translate-y-0.5 transition-all">
+                    <span className="font-extrabold text-xs text-accent-green uppercase block tracking-wider flex items-center gap-1.5 font-mono">
+                      <span>✓</span>
+                      Positive Evidence (Key Strengths)
                     </span>
-                    <ul className="text-xs text-foreground list-disc list-inside space-y-1.5">
+                    <ul className="text-xs text-foreground space-y-1.5">
                       {analysisRunResult.analysis.strengths?.slice(0, 4).map((s: string, idx: number) => (
-                        <li key={idx} className="leading-snug text-2xs font-medium">{s}</li>
+                        <li key={idx} className="leading-snug text-2xs font-medium flex items-start gap-1.5">
+                          <span className="text-accent-green font-bold shrink-0">✓</span>
+                          <span>{s}</span>
+                        </li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="border border-foreground p-4 bg-white space-y-2 shadow-[3px_3px_0px_0px_#111111]">
-                    <span className="font-extrabold text-xs text-foreground uppercase block tracking-wider flex items-center gap-1.5 font-mono">
-                      <span className="w-1.5 h-1.5 bg-foreground"></span>
-                      Key Concerns
+                  <div className="border border-foreground border-t-4 border-t-accent-red p-4 bg-white space-y-2 shadow-[3px_3px_0px_0px_#111111] hover:-translate-y-0.5 transition-all">
+                    <span className="font-extrabold text-xs text-accent-red uppercase block tracking-wider flex items-center gap-1.5 font-mono">
+                      <span>✕</span>
+                      Risk Evidence (Key Concerns)
                     </span>
-                    <ul className="text-xs text-foreground list-disc list-inside space-y-1.5">
+                    <ul className="text-xs text-foreground space-y-1.5">
                       {analysisRunResult.analysis.concerns?.slice(0, 4).map((c: string, idx: number) => (
-                        <li key={idx} className="leading-snug text-2xs font-medium">{c}</li>
+                        <li key={idx} className="leading-snug text-2xs font-medium flex items-start gap-1.5">
+                          <span className="text-accent-red font-bold shrink-0">✕</span>
+                          <span>{c}</span>
+                        </li>
                       ))}
                     </ul>
                   </div>
