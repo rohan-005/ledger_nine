@@ -81,6 +81,15 @@ describe("LangGraph Research Graph Integration Tests", () => {
       cons: ["High valuation"],
       riskFactors: ["Market competition"],
       summary: "OpenRouter Overall Summary",
+      evidenceStrength: "High strength",
+      evidenceConsistency: "High consistency",
+      majorSupportingFactors: ["Strong cash flow"],
+      majorConcerns: ["High valuation"],
+      keyRisks: ["Market competition"],
+      missingEvidence: [],
+      decisionRationale: "OpenRouter Overall Summary",
+      overallConfidence: 95,
+      finalVerdict: "INVEST",
     });
 
     // 4. Mock Groq response
@@ -92,6 +101,15 @@ describe("LangGraph Research Graph Integration Tests", () => {
       cons: ["High valuation"],
       riskFactors: ["Market competition"],
       summary: "Groq Overall Summary",
+      evidenceStrength: "Moderate strength",
+      evidenceConsistency: "High consistency",
+      majorSupportingFactors: ["Strong cash flow"],
+      majorConcerns: ["High valuation"],
+      keyRisks: ["Market competition"],
+      missingEvidence: [],
+      decisionRationale: "Groq Overall Summary",
+      overallConfidence: 85,
+      finalVerdict: "INVEST",
     });
 
     const result = await researchGraph.invoke({
@@ -139,6 +157,15 @@ describe("LangGraph Research Graph Integration Tests", () => {
       cons: ["Valuation pressure"],
       riskFactors: ["Macro risks"],
       summary: "Groq Fallback Summary",
+      evidenceStrength: "Low strength",
+      evidenceConsistency: "Mixed consistency",
+      majorSupportingFactors: ["Good assets"],
+      majorConcerns: ["Valuation pressure"],
+      keyRisks: ["Macro risks"],
+      missingEvidence: [],
+      decisionRationale: "Groq Fallback Summary",
+      overallConfidence: 75,
+      finalVerdict: "PASS",
     });
 
     const result = await researchGraph.invoke({

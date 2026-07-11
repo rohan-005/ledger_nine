@@ -302,22 +302,49 @@ async function groqNode(state: typeof ResearchStateAnnotation.State) {
 
     const compactedBundle = compactEvidenceBundle(state.evidenceBundle);
 
-    const systemPrompt = `You are a professional financial diagnostics AI. Your task is to analyze the compacted company data bundle, local normalized snapshot, and transparent category assessments, then return a structured JSON response matching the required schema.
+    const systemPrompt = `You are a disciplined, conservative equity research analyst. Your task is to analyze the compacted company data bundle, local normalized snapshot, and transparent category assessments, then return a highly rigorous structured JSON response matching the required schema.
 
 CRITICAL ROLE AND RULES:
 1. STRICTLY QUALITATIVE ANALYSIS: You must NEVER invent or extrapolate any numerical facts (such as stock prices, EPS, revenues, profits, P/E, or cash flow ratios).
 2. ONLY interpret the news, events, and qualitative textual evidence provided to you.
 3. If any financial or market value is absent from the evidence, state that it is unavailable. Never infer or fabricate a financial value.
 4. Never search the internet or browse external links. Base every conclusion ONLY on the supplied evidence.
-5. Synthesize these facts to make an independent evidence-grounded judgment and output:
-   - "investmentScore": synthesized score (0-100).
-   - "verdict": strictly "INVEST" or "PASS" (no third option).
-   - "confidence": confidence score of this judgment (0-100).
-   - "pros": array of key positive evidence highlights.
-   - "cons": array of key concerns or negative points.
-   - "riskFactors": array of primary risks based ONLY on the evidence.
-   - "summary": a short, direct summary overview of the investment thesis.
-If evidence is insufficient, weak, incomplete, contradictory, or too unreliable to justify investment, you MUST output a verdict of PASS. Keep all explanations and narrative fields short, direct, and to the point.`;
+5. Think conservatively. Prefer PASS over INVEST. An INVEST recommendation must be earned with overwhelming evidence across multiple strong categories. If evidence is mixed, incomplete, or contradictory, you MUST recommend PASS.
+6. Support every conclusion with supplied evidence. Never allow enthusiasm to replace evidence.
+
+MULTI-STAGE EVALUATION ENGINE:
+You must perform the following evaluation steps in order:
+- **Stage 1: Validate Evidence Quality**: Check what evidence is missing or unavailable. Inspect provider health.
+- **Stage 2: Evaluate Categories Independently (Weighted)**:
+  - Higher Impact (weighted most heavily): Financial Capacity (Balance Sheet), Cash Flow (CFO, Capex), Price Behaviour (2-3 year trend), Market Value Context.
+  - Moderate Impact: Recent News, Company Metadata.
+  - Low Impact: Minor descriptive/business summary details.
+- **Stage 3: Cross-check Contradictions**: Look for discrepancies:
+  - Strong historical growth BUT weak cash flow.
+  - Excellent financial ratios BUT negative recent developments/news.
+  - Positive news BUT declining long-term price trend.
+  - Healthy market capitalization BUT weak balance sheet.
+  Every detected contradiction must reduce confidence and be explained in 'evidenceConsistency' and 'contradictionImpact'.
+- **Stage 4a: Calculate Evidence Consistency Score**: Assess provider agreement, metrics alignment with market behavior, and news vs financials. Scale 0-100.
+- **Stage 4b: Calculate Overall Evidence Strength**: Calculate a weighted score of evidence (0-100) reflecting Stage 2 weights.
+- **Stage 5: Generate Verdict**: Apply strict decision rules:
+  - You can ONLY recommend "INVEST" if:
+    * Financial Capacity is strong/healthy.
+    * AND Cash Flow is positive/growing.
+    * AND Long-term price behavior is acceptable.
+    * AND there are no major unresolved contradictions.
+  - Otherwise, you MUST recommend "PASS".
+- **Stage 6: Generate Human Explanation**: Create a detailed, traceable decision rationale.
+
+SCHEMA MAPPINGS:
+Ensure the following mappings are identical and consistent:
+- "verdict" and "finalVerdict" must be the same ("INVEST" or "PASS").
+- "investmentScore" and "overallEvidenceStrength" must be the same number (0-100).
+- "confidence" and "overallConfidence" must be the same number (0-100).
+- "summary" and "decisionRationale" must contain the same rationale.
+- "pros" and "majorSupportingFactors" must list the same key strengths.
+- "cons" and "majorConcerns" must list the same key concerns.
+- "riskFactors" and "keyRisks" must list the same key risks.`;
 
     const userPrompt = `Here is the compacted factual evidence bundle:
 ${JSON.stringify(compactedBundle, null, 2)}
@@ -500,20 +527,29 @@ async function consensusNode(state: typeof ResearchStateAnnotation.State) {
     cons: Array.from(consSet),
     riskFactors: Array.from(risksSet),
     summary,
+    evidenceStrength: primaryModel.data.evidenceStrength || `Consensus based on ${targetRuns.length} models.`,
+    evidenceConsistency: primaryModel.data.evidenceConsistency || "Cross-provider metrics evaluated.",
+    majorSupportingFactors: primaryModel.data.majorSupportingFactors || Array.from(prosSet),
+    majorConcerns: primaryModel.data.majorConcerns || Array.from(consSet),
+    keyRisks: primaryModel.data.keyRisks || Array.from(risksSet),
+    missingEvidence: primaryModel.data.missingEvidence || [],
+    decisionRationale: primaryModel.data.decisionRationale || summary,
+    overallConfidence: confidence,
+    finalVerdict: verdict,
   };
 
   // Map to legacy AnalysisOutput contract expected by the frontend
   const legacyAnalysis: AnalysisOutput = {
-    companySummary: consensusResult.summary,
-    financialInterpretation: `Evaluated via Consensus Node: ${targetRuns.map((r) => r.provider).join(", ")}.`,
-    marketInterpretation: `Investment Score: ${consensusResult.investmentScore}/100. Confidence: ${consensusResult.confidence}%.`,
+    companySummary: consensusResult.decisionRationale || consensusResult.summary,
+    financialInterpretation: consensusResult.evidenceConsistency ? `Consistency Details: ${consensusResult.evidenceConsistency}` : `Evaluated via Consensus Node: ${targetRuns.map((r) => r.provider).join(", ")}.`,
+    marketInterpretation: consensusResult.evidenceStrength ? `Evidence Strength: ${consensusResult.evidenceStrength} | Score: ${consensusResult.investmentScore}/100 | Confidence: ${consensusResult.confidence}%` : `Investment Score: ${consensusResult.investmentScore}/100. Confidence: ${consensusResult.confidence}%.`,
     newsInterpretation: "Factual news sentiment resolved.",
     webResearchInterpretation: "Web evidence references parsed.",
     strengths: consensusResult.pros,
     concerns: consensusResult.cons,
     conflicts: consensusResult.riskFactors,
-    evidenceGaps: [],
-    overallSummary: consensusResult.summary,
+    evidenceGaps: consensusResult.missingEvidence || [],
+    overallSummary: consensusResult.decisionRationale || consensusResult.summary,
     citedEvidenceIds: [],
     verdict: consensusResult.verdict,
     finalScore: consensusResult.investmentScore,

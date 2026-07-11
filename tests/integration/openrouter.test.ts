@@ -72,6 +72,15 @@ describe("OpenRouter Provider & Gemini Mock Integration Tests", () => {
       cons: ["High R&D cost"],
       riskFactors: ["Competition"],
       summary: "Looks like a buy",
+      evidenceStrength: "Strong balance sheet and operating cash flows.",
+      evidenceConsistency: "Metrics align across all categories.",
+      majorSupportingFactors: ["Consistent revenue growth"],
+      majorConcerns: ["High R&D cost"],
+      keyRisks: ["Competition"],
+      missingEvidence: [],
+      decisionRationale: "Looks like a buy",
+      overallConfidence: 88,
+      finalVerdict: "INVEST",
     });
 
     const res = await runOpenRouterAnalysis(dummyBundle, dummySnapshot, dummySnapshot.categoryAssessments);
